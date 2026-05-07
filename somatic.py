@@ -5,6 +5,13 @@ import matplotlib.pyplot as plt
 # 1. Load the dataset
 data = pd.read_csv('TumorVariantDownload_r21-2.csv')
 
+mutation_types = data['Effect'].unique()
+
+# Print the mutation types
+print("Mutation types in the dataset:")
+for mutation in mutation_types:
+    print(mutation)
+
 #count and calculate percentage
 grouped_topography = data['Sub_topography'].value_counts(ascending=True)/len(data)*100
 # select types that occur in more than 0.9% of cases
@@ -73,3 +80,4 @@ plt.text(0, 5.5, f'while remaining {hist[0]/len(codon_number)*100:.2f} % are int
          , fontsize=10)
 plt.savefig('codon_number_distribution.png', dpi=300, bbox_inches='tight')
 plt.show()
+

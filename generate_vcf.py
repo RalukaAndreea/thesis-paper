@@ -97,17 +97,17 @@ def _variant_to_vcf_line(row: pd.Series, idx: int, profile: str,
 
     # Simulate AF & DP based on profile (realistic overlap)
     if profile == "germline":
-        # Germline heterozygous: VAF clusters around 0.50
-        af = round(float(rng.normal(0.48, 0.08)), 3)
-        af = max(0.20, min(0.60, af))
+        # Germline heterozygous: VAF clusters tightly around 0.50
+        af = round(float(rng.normal(0.50, 0.05)), 3)
+        af = max(0.30, min(0.60, af))
         dp = int(rng.integers(30, 120))
         gt = "0/1"
         db_source = "ClinVar"
     else:  # somatic
-        # Somatic: broad VAF range including clonal (high) variants
-        af = round(float(rng.normal(0.20, 0.12)), 3)
-        af = max(0.02, min(0.55, af))
-        dp = int(rng.integers(50, 500))
+        # Somatic: lower VAF, typically subclonal
+        af = round(float(rng.normal(0.15, 0.10)), 3)
+        af = max(0.02, min(0.40, af))
+        dp = int(rng.integers(80, 500))
         gt = "0/1"
         db_source = "COSMIC"
 

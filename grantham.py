@@ -84,3 +84,8 @@ if __name__ == "__main__":
               f"  [expected {expected}]")
     print("=" * 45)
     print("All tests passed!" if all_pass else "SOME TESTS FAILED!")
+
+    print(_GRANTHAM_DICT)
+
+    for pair, score in _GRANTHAM_DICT.items():
+        print(f"{pair[0]} to {pair[1]}: {score}")

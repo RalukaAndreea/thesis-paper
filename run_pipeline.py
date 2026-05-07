@@ -13,6 +13,7 @@ from pipeline import (
     engineer_features,
     train_pathogenicity_model,
     train_origin_model,
+    train_nonfunc_origin_model,
     extract_feature_importances,
     classify_variants,
     export_results,
@@ -66,9 +67,15 @@ def main():
     print("\n▶ Step 5: Training Origin classifier (real data)...")
     origin_model, origin_features, orig_X_test, orig_y_test = train_origin_model()
 
+    # Step 5b: Train Stage 2b — Non-functional Origin model
+    print("\n▶ Step 5b: Training Non-Functional Origin classifier...")
+    nf_origin_model, nf_origin_features, nf_orig_X_test, nf_orig_y_test = (
+        train_nonfunc_origin_model()
+    )
+
     # Step 6: Classify patient variants
     print("\n▶ Step 6: Classifying patient variants...")
-    results_df = classify_variants(features_df, path_model, origin_model)
+    results_df = classify_variants(features_df, path_model, origin_model, nf_origin_model)
 
     # Step 7: Feature importances
     print("\n▶ Step 7: Extracting feature importances...")
@@ -78,15 +85,21 @@ def main():
     fi_origin = extract_feature_importances(
         origin_model, origin_features, stage_name="Stage 2 — Origin"
     )
+    fi_nf_origin = extract_feature_importances(
+        nf_origin_model, nf_origin_features, stage_name="Stage 2b — NF Origin"
+    )
 
     # Save feature importances to CSV
-    fi_path_csv = os.path.join(PROJECT_DIR, "feature_importances_pathogenicity.csv")
-    fi_orig_csv = os.path.join(PROJECT_DIR, "feature_importances_origin.csv")
+    fi_path_csv    = os.path.join(PROJECT_DIR, "feature_importances_pathogenicity.csv")
+    fi_orig_csv    = os.path.join(PROJECT_DIR, "feature_importances_origin.csv")
+    fi_nf_orig_csv = os.path.join(PROJECT_DIR, "feature_importances_nf_origin.csv")
     fi_pathogenicity.to_csv(fi_path_csv, index=False)
     fi_origin.to_csv(fi_orig_csv, index=False)
+    fi_nf_origin.to_csv(fi_nf_orig_csv, index=False)
     print(f"\n  ✓ Feature importances saved to:")
     print(f"    → {fi_path_csv}")
     print(f"    → {fi_orig_csv}")
+    print(f"    → {fi_nf_orig_csv}")
 
     # Step 8: Export final results
     print("\n▶ Step 8: Exporting results...")
@@ -106,6 +119,10 @@ def main():
         orig_X_test=orig_X_test,
         orig_y_test=orig_y_test,
         output_dir=PROJECT_DIR,
+        nf_orig_model=nf_origin_model,
+        nf_orig_features=nf_origin_features,
+        nf_orig_X_test=nf_orig_X_test,
+        nf_orig_y_test=nf_orig_y_test,
     )
 
     # Summary
@@ -123,6 +140,7 @@ def main():
     print(f"    • cv_model_comparison.json  — 5-fold CV metrics")
     print(f"    • feature_importances_pathogenicity.csv")
     print(f"    • feature_importances_origin.csv")
+    print(f"    • feature_importances_nf_origin.csv")
     print(f"\n  Thesis plots ({len(plots)}):")
     for p in plots:
         print(f"    • {os.path.basename(p)}")
@@ -133,7 +151,8 @@ def main():
     preview_cols = [
         "Chromosome", "Position", "Ref", "Alt",
         "Grantham_Score", "VAF", "REVEL",
-        "Pathogenicity_Prediction", "Origin_Prediction"
+        "Pathogenicity_Prediction", "Origin_Prediction",
+        "NF_Origin_Prediction"
     ]
     print(results_df[preview_cols].head().to_string(index=False))
     print()

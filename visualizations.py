@@ -38,8 +38,9 @@ COLORS = {
     "gradient_2": "#2cb67d",
 }
 
-STAGE1_COLORS = ["#2cb67d", "#e53170"]  # Functional=green, Non-functional=pink
-STAGE2_COLORS = ["#72b4eb", "#f9c74f"]  # Germline=blue, Somatic=gold
+STAGE1_COLORS  = ["#2cb67d", "#e53170"]  # Functional=green, Non-functional=pink
+STAGE2_COLORS  = ["#72b4eb", "#f9c74f"]  # Germline=blue, Somatic=gold
+STAGE2B_COLORS = ["#a78bfa", "#f97316"]  # Germline=purple, Somatic=orange
 
 
 def _save_fig(fig, filepath: str):
@@ -51,12 +52,21 @@ def _save_fig(fig, filepath: str):
 def plot_class_distribution(results_df: pd.DataFrame, output_dir: str) -> str:
 
     filepath = os.path.join(output_dir, "class_distribution.png")
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
+    # Check if NF_Origin_Prediction column exists and has non-N/A values
+    has_nf = ("NF_Origin_Prediction" in results_df.columns and
+              (results_df["NF_Origin_Prediction"] != "N/A").any())
+    n_cols = 3 if has_nf else 2
+    fig, axes = plt.subplots(1, n_cols, figsize=(7 * n_cols, 6))
+    if n_cols == 2:
+        ax1, ax2 = axes
+    else:
+        ax1, ax2, ax3 = axes
+
+    # Stage 1: Pathogenicity
     path_counts = results_df["Pathogenicity_Prediction"].value_counts()
     labels1 = path_counts.index.tolist()
     sizes1 = path_counts.values
-    pct1 = sizes1 / sizes1.sum() * 100
 
     wedges1, texts1, autotexts1 = ax1.pie(
         sizes1, labels=None, colors=STAGE1_COLORS,
@@ -73,6 +83,7 @@ def plot_class_distribution(results_df: pd.DataFrame, output_dir: str) -> str:
     )
     ax1.set_title("Stage 1 — Pathogenicity", fontweight="bold", pad=15)
 
+    # Stage 2a: Origin (all variants)
     orig_counts = results_df["Origin_Prediction"].value_counts()
     labels2 = orig_counts.index.tolist()
     sizes2 = orig_counts.values
@@ -90,7 +101,29 @@ def plot_class_distribution(results_df: pd.DataFrame, output_dir: str) -> str:
         loc="lower center", frameon=False, fontsize=10,
         bbox_to_anchor=(0.5, -0.08)
     )
-    ax2.set_title("Stage 2 — Origin", fontweight="bold", pad=15)
+    ax2.set_title("Stage 2a — Origin (All)", fontweight="bold", pad=15)
+
+    # Stage 2b: Origin (non-functional only)
+    if has_nf:
+        nf_df = results_df[results_df["NF_Origin_Prediction"] != "N/A"]
+        nf_counts = nf_df["NF_Origin_Prediction"].value_counts()
+        labels3 = nf_counts.index.tolist()
+        sizes3 = nf_counts.values
+
+        wedges3, texts3, autotexts3 = ax3.pie(
+            sizes3, labels=None, colors=STAGE2B_COLORS,
+            autopct=lambda p: f"{p:.1f}%", startangle=90,
+            pctdistance=0.75, wedgeprops=dict(width=0.45, edgecolor="#1a1a2e", linewidth=2)
+        )
+        for at in autotexts3:
+            at.set_fontsize(12)
+            at.set_fontweight("bold")
+        ax3.legend(
+            [f"{l} (n={s})" for l, s in zip(labels3, sizes3)],
+            loc="lower center", frameon=False, fontsize=10,
+            bbox_to_anchor=(0.5, -0.08)
+        )
+        ax3.set_title("Stage 2b — Origin (Non-Functional)", fontweight="bold", pad=15)
 
     fig.suptitle("Class Distribution of Patient Variant Predictions",
                  fontsize=16, fontweight="bold", y=1.02)
@@ -107,10 +140,12 @@ def plot_roc_curve(model, X_test: np.ndarray,
                    output_dir: str) -> str:
 
     stage_tag = stage_name.lower().replace(" ", "").replace("—", "")
-    if "pathogenicity" in stage_tag or "1" in stage_tag:
+    if "pathogenicity" in stage_tag or "stage1" in stage_tag:
         filename = "stage1_roc_curve.png"
+    elif "2b" in stage_tag or "non-functional" in stage_tag or "nf" in stage_tag.replace(" ", ""):
+        filename = "stage2b_roc_curve.png"
     else:
-        filename = "stage2_roc_curve.png"
+        filename = "stage2a_roc_curve.png"
     filepath = os.path.join(output_dir, filename)
 
     fig, ax = plt.subplots(figsize=(8, 7))
@@ -151,10 +186,13 @@ def plot_confusion_matrix(model, X_test: np.ndarray,
                           y_test: np.ndarray, stage_name: str,
                           class_names: list[str], color: str,
                           output_dir: str) -> str:
-    if "1" in stage_name:
+    stage_tag = stage_name.lower().replace(" ", "").replace("—", "")
+    if "pathogenicity" in stage_tag or "stage1" in stage_tag:
         filename = "stage1_confusion_matrix.png"
+    elif "2b" in stage_tag or "non-functional" in stage_tag or "nf" in stage_tag.replace(" ", ""):
+        filename = "stage2b_confusion_matrix.png"
     else:
-        filename = "stage2_confusion_matrix.png"
+        filename = "stage2a_confusion_matrix.png"
     filepath = os.path.join(output_dir, filename)
 
     fig, ax = plt.subplots(figsize=(7, 6))
@@ -203,10 +241,13 @@ def plot_feature_importance(model,
                             feature_names: list[str], stage_name: str,
                             color: str, output_dir: str) -> str:
 
-    if "1" in stage_name:
+    stage_tag = stage_name.lower().replace(" ", "").replace("—", "")
+    if "pathogenicity" in stage_tag or "stage1" in stage_tag:
         filename = "stage1_feature_importance.png"
+    elif "2b" in stage_tag or "non-functional" in stage_tag or "nf" in stage_tag.replace(" ", ""):
+        filename = "stage2b_feature_importance.png"
     else:
-        filename = "stage2_feature_importance.png"
+        filename = "stage2a_feature_importance.png"
     filepath = os.path.join(output_dir, filename)
 
     fig, ax = plt.subplots(figsize=(9, 5))
@@ -246,15 +287,24 @@ def plot_model_comparison(path_model,
                           path_X_test: np.ndarray, path_y_test: np.ndarray,
                           orig_model,
                           orig_X_test: np.ndarray, orig_y_test: np.ndarray,
-                          output_dir: str) -> str:
+                          output_dir: str,
+                          nf_orig_model=None,
+                          nf_orig_X_test: np.ndarray = None,
+                          nf_orig_y_test: np.ndarray = None) -> str:
 
     filepath = os.path.join(output_dir, "model_comparison.png")
 
-    metrics = {}
-    for name, model, X, y in [
+    model_list = [
         ("Stage 1\nPathogenicity", path_model, path_X_test, path_y_test),
-        ("Stage 2\nOrigin",        orig_model, orig_X_test, orig_y_test),
-    ]:
+        ("Stage 2a\nOrigin (All)",  orig_model, orig_X_test, orig_y_test),
+    ]
+    if nf_orig_model is not None and nf_orig_X_test is not None:
+        model_list.append(
+            ("Stage 2b\nOrigin (NF)", nf_orig_model, nf_orig_X_test, nf_orig_y_test)
+        )
+
+    metrics = {}
+    for name, model, X, y in model_list:
         y_pred = model.predict(X)
         metrics[name] = {
             "Accuracy":  accuracy_score(y, y_pred),
@@ -263,25 +313,26 @@ def plot_model_comparison(path_model,
             "F1 Score":  f1_score(y, y_pred, zero_division=0),
         }
 
-    fig, ax = plt.subplots(figsize=(11, 6))
+    fig, ax = plt.subplots(figsize=(13, 6))
 
     metric_names = list(list(metrics.values())[0].keys())
     model_names = list(metrics.keys())
     x = np.arange(len(metric_names))
-    width = 0.32
+    n_models = len(model_names)
+    width = 0.25
 
-    colors_bar = [COLORS["primary"], COLORS["secondary"]]
+    colors_bar = [COLORS["primary"], COLORS["secondary"], COLORS["accent"]][:n_models]
 
     for i, (model_name, color) in enumerate(zip(model_names, colors_bar)):
         vals = [metrics[model_name][m] for m in metric_names]
-        offset = (i - 0.5) * width
+        offset = (i - (n_models - 1) / 2) * width
         bars = ax.bar(x + offset, vals, width, label=model_name,
                       color=color, edgecolor="#1a1a2e", linewidth=0.5,
                       alpha=0.9)
         for bar, val in zip(bars, vals):
             ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.015,
                     f"{val:.3f}", ha="center", va="bottom",
-                    fontsize=10, fontweight="bold")
+                    fontsize=9, fontweight="bold")
 
     ax.set_xticks(x)
     ax.set_xticklabels(metric_names, fontsize=12)
@@ -313,12 +364,16 @@ def generate_all_plots(results_df: pd.DataFrame,
                        orig_features: list[str],
                        orig_X_test: np.ndarray,
                        orig_y_test: np.ndarray,
-                       output_dir: str) -> list[str]:
+                       output_dir: str,
+                       nf_orig_model=None,
+                       nf_orig_features: list[str] = None,
+                       nf_orig_X_test: np.ndarray = None,
+                       nf_orig_y_test: np.ndarray = None) -> list[str]:
 
     print("\n  Generating thesis plots...")
     plots = []
 
-    # 1. Class distribution
+    # 1. Class distribution (handles 2 or 3 panels automatically)
     plots.append(plot_class_distribution(results_df, output_dir))
 
     # 2–4. Stage 1 plots
@@ -337,27 +392,47 @@ def generate_all_plots(results_df: pd.DataFrame,
         "Stage 1 — Pathogenicity", COLORS["primary"], output_dir
     ))
 
-    # 5–7. Stage 2 plots
+    # 5–7. Stage 2a plots
     plots.append(plot_roc_curve(
         orig_model, orig_X_test, orig_y_test,
-        "Stage 2 — Origin",
+        "Stage 2a — Origin (All)",
         ["Germline", "Somatic"], STAGE2_COLORS, output_dir
     ))
     plots.append(plot_confusion_matrix(
         orig_model, orig_X_test, orig_y_test,
-        "Stage 2 — Origin",
+        "Stage 2a — Origin (All)",
         ["Germline", "Somatic"], STAGE2_COLORS[1], output_dir
     ))
     plots.append(plot_feature_importance(
         orig_model, orig_features,
-        "Stage 2 — Origin", COLORS["secondary"], output_dir
+        "Stage 2a — Origin (All)", COLORS["secondary"], output_dir
     ))
 
-    # 8. Model comparison
+    # 8–10. Stage 2b plots (if model provided)
+    if nf_orig_model is not None:
+        plots.append(plot_roc_curve(
+            nf_orig_model, nf_orig_X_test, nf_orig_y_test,
+            "Stage 2b — Origin (Non-Functional)",
+            ["Germline", "Somatic"], STAGE2B_COLORS, output_dir
+        ))
+        plots.append(plot_confusion_matrix(
+            nf_orig_model, nf_orig_X_test, nf_orig_y_test,
+            "Stage 2b — Origin (Non-Functional)",
+            ["Germline", "Somatic"], STAGE2B_COLORS[1], output_dir
+        ))
+        plots.append(plot_feature_importance(
+            nf_orig_model, nf_orig_features,
+            "Stage 2b — Origin (Non-Functional)", COLORS["accent"], output_dir
+        ))
+
+    # 11. Model comparison (all stages)
     plots.append(plot_model_comparison(
         path_model, path_X_test, path_y_test,
         orig_model, orig_X_test, orig_y_test,
-        output_dir
+        output_dir,
+        nf_orig_model=nf_orig_model,
+        nf_orig_X_test=nf_orig_X_test,
+        nf_orig_y_test=nf_orig_y_test,
     ))
 
     print(f"\n  ✓ All {len(plots)} plots saved to: {output_dir}")
