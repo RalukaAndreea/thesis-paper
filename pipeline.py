@@ -13,6 +13,9 @@ from sklearn.metrics import classification_report
 from grantham import get_grantham_score, classify_grantham
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(PROJECT_DIR, "IARC_TP53_DB")
+GERMLINE_CSV = os.path.join(DATA_DIR, "GermlineDownload_r21.csv")
+SOMATIC_CSV = os.path.join(DATA_DIR, "TumorVariantDownload_r21-2.csv")
 
 AA_3TO1 = {
     "Ala": "A", "Cys": "C", "Asp": "D", "Glu": "E", "Phe": "F",
@@ -24,8 +27,23 @@ AA_3TO1 = {
 
 # Encoding maps for categorical predictors
 AGVGD_MAP = {"C0": 0, "C15": 1, "C25": 2, "C35": 3, "C45": 4, "C55": 5, "C65": 6}
-SIFT_MAP  = {"Tolerated": 0, "Damaging": 1}
-PP2_MAP   = {"B": 0, "P": 1, "D": 2}   # Benign / Possibly damaging / Damaging
+SIFT_MAP  = {"Tolerated": 0, "Damaging": 1, "tolerated": 0, "deleterious": 1}
+PP2_MAP   = {
+    "B": 0,
+    "P": 1,
+    "D": 2,
+    "benign": 0,
+    "possibly_damaging": 1,
+    "probably_damaging": 2,
+}   # Benign / Possibly damaging / Damaging
+
+
+def _load_iarc_csv(csv_path: str) -> pd.DataFrame:
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(
+            f"Missing required IARC TP53 data file: {csv_path}"
+        )
+    return pd.read_csv(csv_path)
 
 
 def parse_vcf(filepath: str) -> pd.DataFrame:
@@ -135,21 +153,21 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     # AGVGD, SIFT, PolyPhen-2 are also missense-only predictors.
     # Non-missense variants get neutral defaults (C0 / Tolerated / Benign).
     if "AGVGD" in df.columns:
-        df["AGVGDClass"] = df["AGVGD"].map(AGVGD_MAP)
+        df["AGVGDClass"] = df["AGVGD"].astype(str).str.strip().map(AGVGD_MAP)
         df.loc[is_miss, "AGVGDClass"]  = df.loc[is_miss, "AGVGDClass"].fillna(3)
         df.loc[~is_miss, "AGVGDClass"] = 0
         df["AGVGDClass"] = df["AGVGDClass"].astype(int)
     else:
         df["AGVGDClass"] = 0
     if "SIFT" in df.columns:
-        df["SIFTClass"] = df["SIFT"].map(SIFT_MAP)
+        df["SIFTClass"] = df["SIFT"].astype(str).str.strip().map(SIFT_MAP)
         df.loc[is_miss, "SIFTClass"]  = df.loc[is_miss, "SIFTClass"].fillna(0)
         df.loc[~is_miss, "SIFTClass"] = 0
         df["SIFTClass"] = df["SIFTClass"].astype(int)
     else:
         df["SIFTClass"] = 0
     if "PP2" in df.columns:
-        df["Polyphen2"] = df["PP2"].map(PP2_MAP)
+        df["Polyphen2"] = df["PP2"].astype(str).str.strip().map(PP2_MAP)
         df.loc[is_miss, "Polyphen2"]  = df.loc[is_miss, "Polyphen2"].fillna(1)
         df.loc[~is_miss, "Polyphen2"] = 0
         df["Polyphen2"] = df["Polyphen2"].astype(int)
@@ -173,8 +191,8 @@ PATHOGENICITY_FEATURES = [
 
 
 def _load_pathogenicity_training_data() -> tuple[pd.DataFrame, pd.Series]:
-    germ = pd.read_csv(os.path.join(PROJECT_DIR, "GermlineDownload_r21.csv"))
-    soma = pd.read_csv(os.path.join(PROJECT_DIR, "TumorVariantDownload_r21-2.csv"))
+    germ = _load_iarc_csv(GERMLINE_CSV)
+    soma = _load_iarc_csv(SOMATIC_CSV)
 
     # Filter to missense only and combine
     germ_miss = germ[germ["Effect"] == "missense"].copy()
@@ -201,9 +219,9 @@ def _load_pathogenicity_training_data() -> tuple[pd.DataFrame, pd.Series]:
     combined["BAYESDEL"] = pd.to_numeric(combined["BayesDel"], errors="coerce").fillna(0.0)
 
     #features: AGVGDClass, SIFTClass, Polyphen2
-    combined["AGVGDClass"] = combined["AGVGDClass"].map(AGVGD_MAP).fillna(3).astype(int)
-    combined["SIFTClass"]  = combined["SIFTClass"].map(SIFT_MAP).fillna(0).astype(int)
-    combined["Polyphen2"]  = combined["Polyphen2"].map(PP2_MAP).fillna(1).astype(int)
+    combined["AGVGDClass"] = combined["AGVGDClass"].astype(str).str.strip().map(AGVGD_MAP).fillna(3).astype(int)
+    combined["SIFTClass"]  = combined["SIFTClass"].astype(str).str.strip().map(SIFT_MAP).fillna(0).astype(int)
+    combined["Polyphen2"]  = combined["Polyphen2"].astype(str).str.strip().map(PP2_MAP).fillna(1).astype(int)
 
     # Hotspot & CpG flags
     combined["Is_Hotspot"] = (combined["Hotspot"].str.lower() == "yes").astype(int)
@@ -251,11 +269,24 @@ def train_pathogenicity_model(seed: int = 42) -> tuple:
     rf_base = RandomForestClassifier(
         class_weight="balanced", random_state=seed, n_jobs=-1
     )
-    grid_search = GridSearchCV(
-        rf_base, rf_param_grid,
-        cv=cv, scoring="f1_weighted", n_jobs=-1, refit=True
-    )
-    grid_search.fit(X_train, y_train)
+
+    def _make_grid_search(n_jobs: int) -> GridSearchCV:
+        return GridSearchCV(
+            rf_base,
+            rf_param_grid,
+            cv=cv,
+            scoring="f1_weighted",
+            n_jobs=n_jobs,
+            refit=True,
+        )
+
+    grid_search = _make_grid_search(n_jobs=-1)
+    try:
+        grid_search.fit(X_train, y_train)
+    except PermissionError:
+        print("    Parallel GridSearchCV is unavailable here; retrying with n_jobs=1...")
+        grid_search = _make_grid_search(n_jobs=1)
+        grid_search.fit(X_train, y_train)
     rf_best = grid_search.best_estimator_
 
     print(f"    Best params: {grid_search.best_params_}")
@@ -298,216 +329,6 @@ def train_pathogenicity_model(seed: int = 42) -> tuple:
 
     return rf_best, PATHOGENICITY_FEATURES, X_test, y_test, cv_results
 
-#  4. STAGE 2 — ORIGIN MODEL (Real Training Data)
-
-ORIGIN_FEATURES = [
-    "VAF", "DP", "REVEL", "BAYESDEL", "Is_Hotspot",
-    "TCGA_COUNT", "Is_Missense", "Is_CpG"
-]
-
-
-def _load_origin_training_data(seed: int = 123) -> tuple[pd.DataFrame, pd.Series]:
-    rng = np.random.default_rng(seed)
-
-    germ = pd.read_csv(os.path.join(PROJECT_DIR, "GermlineDownload_r21.csv"))
-    soma = pd.read_csv(os.path.join(PROJECT_DIR, "TumorVariantDownload_r21-2.csv"))
-
-    # Deduplicate each dataset to unique mutations
-    germ_dedup = germ.drop_duplicates(
-        subset=["hg38_Chr17_coordinates", "WT_nucleotide", "Mutant_nucleotide"]
-    ).copy()
-    soma_dedup = soma.drop_duplicates(
-        subset=["hg38_Chr17_coordinates", "WT_nucleotide", "Mutant_nucleotide"]
-    ).copy()
-
-    n_g = len(germ_dedup)
-    n_s = len(soma_dedup)
-
-    # Balance the dataset (downsample somatic to match germline × 2)
-    if n_s > n_g * 2:
-        soma_dedup = soma_dedup.sample(n=n_g * 2, random_state=seed)
-        n_s = len(soma_dedup)
-
-    # Simulate VAF and DP (tighter separation for cleaner predictions)
-    vaf_g = np.clip(rng.normal(0.50, 0.05, n_g), 0.30, 0.60)
-    dp_g  = rng.integers(30, 120, size=n_g).astype(float)
-    vaf_s = np.clip(rng.normal(0.15, 0.10, n_s), 0.02, 0.40)
-    dp_s  = rng.integers(80, 500, size=n_s).astype(float)
-
-    # Real annotation scores
-    revel_g   = pd.to_numeric(germ_dedup["REVEL"], errors="coerce").fillna(0.5).values
-    bayesd_g  = pd.to_numeric(germ_dedup["BayesDel"], errors="coerce").fillna(0.0).values
-    hotspot_g = (germ_dedup["Hotspot"].str.lower() == "yes").astype(int).values
-
-    revel_s   = pd.to_numeric(soma_dedup["REVEL"], errors="coerce").fillna(0.5).values
-    bayesd_s  = pd.to_numeric(soma_dedup["BayesDel"], errors="coerce").fillna(0.0).values
-    hotspot_s = (soma_dedup["Hotspot"].str.lower() == "yes").astype(int).values
-
-    # Real TCGA/ICGC/GENIE count
-    tcga_g = pd.to_numeric(germ_dedup["TCGA_ICGC_GENIE_count"], errors="coerce").fillna(0).values
-    tcga_s = pd.to_numeric(soma_dedup["TCGA_ICGC_GENIE_count"], errors="coerce").fillna(0).values
-
-    # Mutation effect type (Is_Missense)
-    missense_g = (germ_dedup["Effect"].str.lower() == "missense").astype(int).values
-    missense_s = (soma_dedup["Effect"].str.lower() == "missense").astype(int).values
-
-    # CpG site (somatic mutagenesis signature)
-    cpg_g = (germ_dedup["CpG_site"].str.lower() == "yes").astype(int).values
-    cpg_s = (soma_dedup["CpG_site"].str.lower() == "yes").astype(int).values
-
-    # Stack features
-    X_g = np.column_stack([vaf_g, dp_g, revel_g, bayesd_g, hotspot_g, tcga_g, missense_g, cpg_g])
-    X_s = np.column_stack([vaf_s, dp_s, revel_s, bayesd_s, hotspot_s, tcga_s, missense_s, cpg_s])
-    X = np.vstack([X_g, X_s])
-    y = np.array([0] * n_g + [1] * n_s)
-
-    # Shuffle
-    perm = rng.permutation(len(y))
-    X, y = X[perm], y[perm]
-
-    print(f"  Loaded {len(X)} real variants for origin training")
-    print(f"  Germline: {n_g}, Somatic: {n_s}")
-    return pd.DataFrame(X, columns=ORIGIN_FEATURES), pd.Series(y)
-
-
-def train_origin_model(seed: int = 123) -> tuple[RandomForestClassifier, list[str], np.ndarray, np.ndarray]:
-    X, y = _load_origin_training_data(seed=seed)
-    X_arr = X.values.astype(float)
-    y_arr = y.values
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_arr, y_arr, test_size=0.2, random_state=seed, stratify=y_arr
-    )
-
-    model = RandomForestClassifier(
-        n_estimators=300,
-        max_depth=12,
-        min_samples_split=5,
-        class_weight="balanced",
-        random_state=seed,
-        n_jobs=-1
-    )
-    model.fit(X_train, y_train)
-
-    y_pred = model.predict(X_test)
-    print("\n  ── Stage 2: Origin Model (real data evaluation) ──")
-    print(classification_report(
-        y_test, y_pred,
-        target_names=["Germline", "Somatic"],
-        zero_division=0
-    ))
-
-    return model, ORIGIN_FEATURES, X_test, y_test
-
-
-#  5. STAGE 2b — ORIGIN MODEL (Non-Functional Variants Only)
-
-def _load_nonfunc_origin_training_data(seed: int = 321) -> tuple[pd.DataFrame, pd.Series]:
-    """Load origin training data filtered to non-functional variants only."""
-    rng = np.random.default_rng(seed)
-
-    germ = pd.read_csv(os.path.join(PROJECT_DIR, "GermlineDownload_r21.csv"))
-    soma = pd.read_csv(os.path.join(PROJECT_DIR, "TumorVariantDownload_r21-2.csv"))
-
-    # Filter to non-functional variants only
-    nf_labels = ["non-functional", "partially functional"]
-    germ_nf = germ[
-        germ["TransactivationClass"].str.strip().str.lower().isin(nf_labels)
-    ].copy()
-    soma_nf = soma[
-        soma["TransactivationClass"].str.strip().str.lower().isin(nf_labels)
-    ].copy()
-
-    # Deduplicate each dataset to unique mutations
-    germ_dedup = germ_nf.drop_duplicates(
-        subset=["hg38_Chr17_coordinates", "WT_nucleotide", "Mutant_nucleotide"]
-    ).copy()
-    soma_dedup = soma_nf.drop_duplicates(
-        subset=["hg38_Chr17_coordinates", "WT_nucleotide", "Mutant_nucleotide"]
-    ).copy()
-
-    n_g = len(germ_dedup)
-    n_s = len(soma_dedup)
-
-    # Balance the dataset (downsample somatic to match germline × 2)
-    if n_s > n_g * 2:
-        soma_dedup = soma_dedup.sample(n=n_g * 2, random_state=seed)
-        n_s = len(soma_dedup)
-
-    # Simulate VAF and DP (tighter separation for cleaner predictions)
-    vaf_g = np.clip(rng.normal(0.50, 0.05, n_g), 0.30, 0.60)
-    dp_g  = rng.integers(30, 120, size=n_g).astype(float)
-    vaf_s = np.clip(rng.normal(0.15, 0.10, n_s), 0.02, 0.40)
-    dp_s  = rng.integers(80, 500, size=n_s).astype(float)
-
-    # Real annotation scores
-    revel_g   = pd.to_numeric(germ_dedup["REVEL"], errors="coerce").fillna(0.5).values
-    bayesd_g  = pd.to_numeric(germ_dedup["BayesDel"], errors="coerce").fillna(0.0).values
-    hotspot_g = (germ_dedup["Hotspot"].str.lower() == "yes").astype(int).values
-
-    revel_s   = pd.to_numeric(soma_dedup["REVEL"], errors="coerce").fillna(0.5).values
-    bayesd_s  = pd.to_numeric(soma_dedup["BayesDel"], errors="coerce").fillna(0.0).values
-    hotspot_s = (soma_dedup["Hotspot"].str.lower() == "yes").astype(int).values
-
-    # Real TCGA/ICGC/GENIE count
-    tcga_g = pd.to_numeric(germ_dedup["TCGA_ICGC_GENIE_count"], errors="coerce").fillna(0).values
-    tcga_s = pd.to_numeric(soma_dedup["TCGA_ICGC_GENIE_count"], errors="coerce").fillna(0).values
-
-    # Mutation effect type (Is_Missense)
-    missense_g = (germ_dedup["Effect"].str.lower() == "missense").astype(int).values
-    missense_s = (soma_dedup["Effect"].str.lower() == "missense").astype(int).values
-
-    # CpG site (somatic mutagenesis signature)
-    cpg_g = (germ_dedup["CpG_site"].str.lower() == "yes").astype(int).values
-    cpg_s = (soma_dedup["CpG_site"].str.lower() == "yes").astype(int).values
-
-    # Stack features
-    X_g = np.column_stack([vaf_g, dp_g, revel_g, bayesd_g, hotspot_g, tcga_g, missense_g, cpg_g])
-    X_s = np.column_stack([vaf_s, dp_s, revel_s, bayesd_s, hotspot_s, tcga_s, missense_s, cpg_s])
-    X = np.vstack([X_g, X_s])
-    y = np.array([0] * n_g + [1] * n_s)
-
-    # Shuffle
-    perm = rng.permutation(len(y))
-    X, y = X[perm], y[perm]
-
-    print(f"  Loaded {len(X)} non-functional variants for origin training")
-    print(f"  Germline: {n_g}, Somatic: {n_s}")
-    return pd.DataFrame(X, columns=ORIGIN_FEATURES), pd.Series(y)
-
-
-def train_nonfunc_origin_model(seed: int = 321) -> tuple[RandomForestClassifier, list[str], np.ndarray, np.ndarray]:
-    """Train origin model using only non-functional (pathogenic) variants."""
-    X, y = _load_nonfunc_origin_training_data(seed=seed)
-    X_arr = X.values.astype(float)
-    y_arr = y.values
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_arr, y_arr, test_size=0.2, random_state=seed, stratify=y_arr
-    )
-
-    model = RandomForestClassifier(
-        n_estimators=300,
-        max_depth=12,
-        min_samples_split=5,
-        class_weight="balanced",
-        random_state=seed,
-        n_jobs=-1
-    )
-    model.fit(X_train, y_train)
-
-    y_pred = model.predict(X_test)
-    print("\n  ── Stage 2b: Non-Functional Origin Model (evaluation) ──")
-    print(classification_report(
-        y_test, y_pred,
-        target_names=["Germline", "Somatic"],
-        zero_division=0
-    ))
-
-    return model, ORIGIN_FEATURES, X_test, y_test
-
-
-# FEATURE IMPORTANCE EXTRACTION
 
 
 def extract_feature_importances(model,
@@ -535,12 +356,10 @@ ORIGIN_LABELS        = {0: "Germline",   1: "Somatic"}
 
 
 def classify_variants(df: pd.DataFrame,
-                       path_model,
-                       origin_model,
-                       nonfunc_origin_model=None) -> pd.DataFrame:
+                       path_model) -> pd.DataFrame:
     df = df.copy()
 
-    # Stage 1: Pathogenicity
+    # Pathogenicity Classification
     X_path = df[PATHOGENICITY_FEATURES].values.astype(float)
     df["Pathogenicity_Pred_Code"] = path_model.predict(X_path)
     df["Pathogenicity_Prediction"] = df["Pathogenicity_Pred_Code"].map(PATHOGENICITY_LABELS)
@@ -581,42 +400,10 @@ def classify_variants(df: pd.DataFrame,
     df.loc[other_mask, "Pathogenicity_Prediction"] = "Unknown"
     df.loc[other_mask, "Pathogenicity_Confidence"] = 0.0
 
-    # Stage 2: Origin (all variants)
-    X_orig = df[ORIGIN_FEATURES].values.astype(float)
-    df["Origin_Pred_Code"] = origin_model.predict(X_orig)
-    df["Origin_Prediction"] = df["Origin_Pred_Code"].map(ORIGIN_LABELS)
-
-    proba_orig = origin_model.predict_proba(X_orig)
-    df["Origin_Confidence"] = proba_orig.max(axis=1).round(3)
-
-    # Stage 2b: Origin (non-functional variants only)
-    df["NF_Origin_Prediction"] = "N/A"
-    df["NF_Origin_Confidence"] = np.nan
-
-    if nonfunc_origin_model is not None:
-        nf_mask = df["Pathogenicity_Pred_Code"] == 1
-        if nf_mask.any():
-            X_nf = df.loc[nf_mask, ORIGIN_FEATURES].values.astype(float)
-            nf_pred = nonfunc_origin_model.predict(X_nf)
-            nf_proba = nonfunc_origin_model.predict_proba(X_nf)
-            df.loc[nf_mask, "NF_Origin_Prediction"] = pd.Series(
-                nf_pred, index=df.loc[nf_mask].index
-            ).map(ORIGIN_LABELS)
-            df.loc[nf_mask, "NF_Origin_Confidence"] = nf_proba.max(axis=1).round(3)
-
     n_func = (df["Pathogenicity_Pred_Code"] == 0).sum()
     n_nonfunc = (df["Pathogenicity_Pred_Code"] == 1).sum()
-    n_germ = (df["Origin_Pred_Code"] == 0).sum()
-    n_soma = (df["Origin_Pred_Code"] == 1).sum()
     print(f"\n  ✓ Classification complete:")
-    print(f"    Stage 1 — Functional: {n_func}, Non-functional: {n_nonfunc}")
-    print(f"    Stage 2 — Germline: {n_germ}, Somatic: {n_soma}")
-
-    if nonfunc_origin_model is not None:
-        nf_mask = df["Pathogenicity_Pred_Code"] == 1
-        nf_germ = ((nf_mask) & (df["NF_Origin_Prediction"] == "Germline")).sum()
-        nf_soma = ((nf_mask) & (df["NF_Origin_Prediction"] == "Somatic")).sum()
-        print(f"    Stage 2b — NF Germline: {nf_germ}, NF Somatic: {nf_soma}")
+    print(f"    Functional: {n_func}, Non-functional: {n_nonfunc}")
 
     return df
 
@@ -625,10 +412,8 @@ OUTPUT_COLUMNS = [
     "Chromosome", "Position", "Ref", "Alt",
     "EFFECT", "AA_REF", "AA_ALT",
     "Grantham_Score", "Grantham_Category",
-    "VAF", "DP", "REVEL", "BAYESDEL", "TCGA_COUNT",
+    "REVEL", "BAYESDEL",
     "Pathogenicity_Prediction", "Pathogenicity_Confidence",
-    "Origin_Prediction", "Origin_Confidence",
-    "NF_Origin_Prediction", "NF_Origin_Confidence",
 ]
 
 

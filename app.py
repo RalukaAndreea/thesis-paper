@@ -3,8 +3,6 @@
 
 import os
 import sys
-import shutil
-import tempfile
 from datetime import datetime
 
 import streamlit as st
@@ -20,11 +18,9 @@ from pipeline import (
     parse_vcf,
     engineer_features,
     classify_variants,
-    PATHOGENICITY_FEATURES,
-    ORIGIN_FEATURES,
     OUTPUT_COLUMNS,
 )
-from visualizations import plot_class_distribution
+from PLOTS.visualizations import plot_class_distribution
 
 # ─── App Config ───────────────────────────────────────────────
 st.set_page_config(
@@ -44,11 +40,14 @@ init_db()
 # ─── Load Pre-trained Models (cached) ────────────────────────
 @st.cache_resource
 def load_models():
-    """Load pre-trained models once and cache them."""
-    path_model = joblib.load(os.path.join(MODELS_DIR, "pathogenicity_model.pkl"))
-    origin_model = joblib.load(os.path.join(MODELS_DIR, "origin_model.pkl"))
-    nf_origin_model = joblib.load(os.path.join(MODELS_DIR, "nf_origin_model.pkl"))
-    return path_model, origin_model, nf_origin_model
+    """Load pre-trained pathogenicity model once and cache it."""
+    model_path = os.path.join(MODELS_DIR, "pathogenicity_model.pkl")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(
+            "Missing models/pathogenicity_model.pkl. Run `venv/bin/python pretrain_models.py` first."
+        )
+    path_model = joblib.load(model_path)
+    return path_model
 
 
 # ─── Custom CSS ───────────────────────────────────────────────
@@ -252,8 +251,8 @@ def page_upload():
         if st.button("Run Pipeline", use_container_width=True):
             with st.spinner("Running TP53 classification pipeline..."):
                 try:
-                    # Load models
-                    path_model, origin_model, nf_origin_model = load_models()
+                    # Load model
+                    path_model = load_models()
 
                     # Save uploaded VCF to temp file
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -268,7 +267,7 @@ def page_upload():
                     # Run pipeline
                     df = parse_vcf(vcf_path)
                     df = engineer_features(df)
-                    results_df = classify_variants(df, path_model, origin_model, nf_origin_model)
+                    results_df = classify_variants(df, path_model)
 
                     # Save results
                     results_csv = os.path.join(user_dir, "results.csv")
@@ -315,15 +314,11 @@ def page_current_results():
     n_total = len(results_df)
     n_nonfunc = (results_df["Pathogenicity_Prediction"] == "Non-functional").sum()
     n_func = (results_df["Pathogenicity_Prediction"] == "Functional").sum()
-    n_germ = (results_df["Origin_Prediction"] == "Germline").sum()
-    n_soma = (results_df["Origin_Prediction"] == "Somatic").sum()
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3 = st.columns(3)
     c1.metric("Total Variants", n_total)
     c2.metric("Functional", n_func)
     c3.metric("Non-functional", n_nonfunc)
-    c4.metric("Germline", n_germ)
-    c5.metric("Somatic", n_soma)
 
     st.divider()
 
@@ -459,14 +454,10 @@ def _show_past_result_detail(upload: dict):
     # Metrics
     n_nonfunc = (results_df["Pathogenicity_Prediction"] == "Non-functional").sum()
     n_func = (results_df["Pathogenicity_Prediction"] == "Functional").sum()
-    n_germ = (results_df["Origin_Prediction"] == "Germline").sum()
-    n_soma = (results_df["Origin_Prediction"] == "Somatic").sum()
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2 = st.columns(2)
     c1.metric("Functional", n_func)
     c2.metric("Non-functional", n_nonfunc)
-    c3.metric("Germline", n_germ)
-    c4.metric("Somatic", n_soma)
 
     st.divider()
 
@@ -495,6 +486,147 @@ def _show_past_result_detail(upload: dict):
         st.info("Plot not available for this upload.")
 
 
+# ─── EXPLAINABILITY / CASE STUDIES PAGE ──────────────────────
+def page_explainability():
+    """Interactive SHAP explainability & case studies from test data."""
+    st.markdown('<p class="main-header"> Explainability & Case Studies</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">SHAP analysis on the 20% hold-out test set — explore how the models make decisions</p>', unsafe_allow_html=True)
+
+    case_dir = os.path.join(PROJECT_DIR, "case_studies")
+    if not os.path.isdir(case_dir):
+        st.warning(
+            "Case studies have not been generated yet. "
+            "Run `python explainability.py` first."
+        )
+        return
+
+    # Stage selector
+    STAGES = {
+        "Pathogenicity (Functional vs Non-functional)": "stage1_pathogenicity",
+    }
+
+    stage_label = st.selectbox("Select Classification Stage", list(STAGES.keys()))
+    stage_key = STAGES[stage_label]
+    stage_path = os.path.join(case_dir, stage_key)
+
+    summary_file = os.path.join(stage_path, "summary.json")
+    if not os.path.exists(summary_file):
+        st.info(f"No data found for {stage_label}. Run `python explainability.py`.")
+        return
+
+    import json as _json
+    with open(summary_file) as f:
+        summary = _json.load(f)
+
+    # ── Test set info ──
+    st.divider()
+    dist = summary.get("class_distribution", {})
+    class_names = summary.get("class_names", ["Class 0", "Class 1"])
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Test Set Size", summary.get("test_set_size", "?"))
+    c2.metric(class_names[0], dist.get(class_names[0], "?"))
+    c3.metric(class_names[1], dist.get(class_names[1], "?"))
+
+    # ── Global SHAP ──
+    st.divider()
+    st.subheader("📊 Global SHAP — Entire Test Set")
+    st.caption(
+        "These plots show how each feature contributes to the model's "
+        "predictions across **all** test samples."
+    )
+
+    tab_bee, tab_bar = st.tabs(["Beeswarm (Summary)", "Mean |SHAP| (Bar)"])
+
+    summary_img = os.path.join(stage_path, "global_shap_summary.png")
+    bar_img = os.path.join(stage_path, "global_shap_bar.png")
+
+    with tab_bee:
+        if os.path.exists(summary_img):
+            st.image(summary_img, use_container_width=True)
+            st.caption(
+                "Each dot is one test sample. Horizontal position = SHAP value "
+                "(impact on prediction). Color = feature value (red=high, blue=low)."
+            )
+        else:
+            st.info("Beeswarm plot not found.")
+
+    with tab_bar:
+        if os.path.exists(bar_img):
+            st.image(bar_img, use_container_width=True)
+            st.caption(
+                "Mean absolute SHAP value per feature — measures average impact "
+                "on model output magnitude."
+            )
+        else:
+            st.info("Bar plot not found.")
+
+    # ── Case Studies ──
+    st.divider()
+    st.subheader("🔬 Individual Case Studies")
+    st.caption(
+        "Four representative variants extracted from the hold-out test set. "
+        "Each includes a SHAP waterfall explaining the model's reasoning."
+    )
+
+    CASE_LABELS = {
+        "true_positive": ("True Positive", "success"),
+        "true_negative": ("True Negative", "success"),
+        "edge_case":     (" Edge Case", "warning"),
+        "error":         (" Misclassification", "error"),
+    }
+
+    cases_data = summary.get("cases", {})
+
+    for case_key, (display_name, badge_type) in CASE_LABELS.items():
+        if case_key not in cases_data:
+            continue
+
+        case = cases_data[case_key]
+        case_subdir = os.path.join(stage_path, f"case_{case_key}")
+
+        with st.expander(f"{display_name} — {case.get('label', '')}", expanded=False):
+            # Description
+            st.markdown(f"**{case.get('description', '')}**")
+
+            # Prediction details
+            pred_col, true_col, conf_col = st.columns(3)
+            pred_col.metric("Predicted", case.get("predicted_label", "?"))
+            true_col.metric("True Label", case.get("true_label", "?"))
+            conf_val = case.get("confidence", 0)
+            conf_col.metric("Confidence", f"{conf_val:.1%}")
+
+            # Probabilities
+            p0 = case.get("prob_class_0", 0)
+            p1 = case.get("prob_class_1", 0)
+            st.markdown(
+                f"Probability: **{class_names[0]}** = {p0:.3f} · "
+                f"**{class_names[1]}** = {p1:.3f}"
+            )
+
+            # Feature values table
+            features = case.get("features", {})
+            if features:
+                st.markdown("**Feature Values:**")
+                feat_df = pd.DataFrame(
+                    list(features.items()), columns=["Feature", "Value"]
+                )
+                st.dataframe(feat_df, use_container_width=True, hide_index=True)
+
+            # SHAP waterfall
+            wf_path = os.path.join(case_subdir, "shap_waterfall.png")
+            if os.path.exists(wf_path):
+                st.markdown("**SHAP Waterfall — Why did the model decide this?**")
+                st.image(wf_path, use_container_width=True)
+                st.caption(
+                    "Red bars push the prediction higher (toward "
+                    f"{class_names[1]}), blue bars push it lower (toward "
+                    f"{class_names[0]}). The bottom shows the base value "
+                    "(average prediction) and the top shows the final output."
+                )
+            else:
+                st.info("Waterfall plot not found for this case.")
+
+
 # ─── SIDEBAR & ROUTING ───────────────────────────────────────
 def main():
     inject_css()
@@ -513,11 +645,12 @@ def main():
     # Sidebar navigation
     user = st.session_state["user"]
 
-    PAGE_OPTIONS = ["Upload VCF", "Current Results", "Past Results"]
+    PAGE_OPTIONS = ["Upload VCF", "Current Results", "Past Results", "Explainability"]
     PAGE_MAP = {
         "Upload VCF": "upload",
         "Current Results": "current_results",
         "Past Results": "past_results",
+        "Explainability": "explainability",
     }
     REVERSE_MAP = {v: k for k, v in PAGE_MAP.items()}
 
@@ -561,6 +694,8 @@ def main():
         page_current_results()
     elif current_page == "past_results":
         page_past_results()
+    elif current_page == "explainability":
+        page_explainability()
 
 
 if __name__ == "__main__":

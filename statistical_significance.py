@@ -10,9 +10,6 @@ from sklearn.metrics import accuracy_score
 
 from pipeline import (
     _load_pathogenicity_training_data,
-    _load_origin_training_data,
-    PATHOGENICITY_FEATURES,
-    ORIGIN_FEATURES,
 )
 
 
@@ -52,7 +49,7 @@ def test_significance(name, X_arr, y_arr, model, seed, n_permutations=100):
     print(f"\n  Permutation test ({n_permutations} permutations)...")
     score, perm_scores, perm_p = permutation_test_score(
         model, X_train, y_train, cv=cv, scoring="accuracy",
-        n_permutations=n_permutations, random_state=seed, n_jobs=-1
+        n_permutations=n_permutations, random_state=seed, n_jobs=1
     )
     print(f"    true score = {score:.4f}, random = {perm_scores.mean():.4f} ± {perm_scores.std():.4f}")
     print(f"    p = {perm_p:.4f}  {'✓ significant' if perm_p < 0.05 else '✗ not significant'}")
@@ -66,13 +63,5 @@ if __name__ == "__main__":
         n_estimators=200, class_weight="balanced", random_state=42, n_jobs=-1
     )
     test_significance("Stage 1: Pathogenicity", X1.values.astype(float), y1.values, model1, seed=42)
-
-    # Stage 2
-    X2, y2 = _load_origin_training_data(seed=123)
-    model2 = RandomForestClassifier(
-        n_estimators=300, max_depth=12, min_samples_split=5,
-        class_weight="balanced", random_state=123, n_jobs=-1
-    )
-    test_significance("Stage 2: Origin", X2.values.astype(float), y2.values, model2, seed=123)
 
     print()

@@ -1,0 +1,20 @@
+{
+  "label": "Clear-Cut Non-functional",
+  "description": "The model correctly identified this variant as Non-functional with very high confidence. All major features align with the positive class.",
+  "features": {
+    "Grantham_Score": 152.0,
+    "REVEL": 0.952,
+    "BAYESDEL": 0.5884,
+    "AGVGDClass": 6.0,
+    "SIFTClass": 1.0,
+    "Polyphen2": 2.0,
+    "Is_Hotspot": 1.0,
+    "Is_CpG": 0.0
+  },
+  "true_label": "Non-functional",
+  "predicted_label": "Non-functional",
+  "confidence": 0.993,
+  "prob_class_0": 0.007,
+  "prob_class_1": 0.993,
+  "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/case_true_positive/shap_waterfall.png"
+}
