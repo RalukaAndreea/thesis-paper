@@ -47,7 +47,7 @@ def main():
 
     # Step 4: Train Stage 1 Pathogenicity (GridSearchCV + 5-fold CV)
     print("\n▶ Step 4: Training Pathogenicity classifier (optimized)...")
-    path_model, path_features, path_X_test, path_y_test, cv_results = (
+    path_model, path_features, path_X_test, path_y_test, cv_results, meta_test = (
         train_pathogenicity_model()
     )
 

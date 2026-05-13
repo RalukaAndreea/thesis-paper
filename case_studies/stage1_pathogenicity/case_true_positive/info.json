@@ -16,5 +16,8 @@
   "confidence": 0.993,
   "prob_class_0": 0.007,
   "prob_class_1": 0.993,
+  "mut_id": "2083",
+  "individual_id": "3660.0",
+  "prot_description": "p.V172D",
   "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/case_true_positive/shap_waterfall.png"
 }

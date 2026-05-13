@@ -241,20 +241,35 @@ def _load_pathogenicity_training_data() -> tuple[pd.DataFrame, pd.Series]:
     X = combined[PATHOGENICITY_FEATURES].copy()
     y = combined["label"]
 
+    # Metadata columns for case study identification
+    meta_cols = []
+    if "MUT_ID" in combined.columns:
+        meta_cols.append("MUT_ID")
+    if "Individual_ID" in combined.columns:
+        meta_cols.append("Individual_ID")
+    if "ProtDescription" in combined.columns:
+        meta_cols.append("ProtDescription")
+    meta = combined[meta_cols].copy() if meta_cols else pd.DataFrame(index=combined.index)
+
     print(f" Loaded {len(X)} real missense variants for pathogenicity training")
     print(f" Functional: {(y == 0).sum()}, Non-functional: {(y == 1).sum()}")
     print(f" Features: {PATHOGENICITY_FEATURES}")
-    return X, y
+    return X, y, meta
 
 
 def train_pathogenicity_model(seed: int = 42) -> tuple:
-    X, y = _load_pathogenicity_training_data()
+    X, y, meta = _load_pathogenicity_training_data()
     X_arr = X.values.astype(float)
     y_arr = y.values
+    meta_arr = meta.reset_index(drop=True)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_arr, y_arr, test_size=0.2, random_state=seed, stratify=y_arr
+    indices = np.arange(len(X_arr))
+    idx_train, idx_test, y_train, y_test = train_test_split(
+        indices, y_arr, test_size=0.2, random_state=seed, stratify=y_arr
     )
+    X_train = X_arr[idx_train]
+    X_test  = X_arr[idx_test]
+    meta_test = meta_arr.iloc[idx_test].reset_index(drop=True)
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
 
@@ -327,7 +342,7 @@ def train_pathogenicity_model(seed: int = 42) -> tuple:
         "best_params":  grid_search.best_params_,
     }
 
-    return rf_best, PATHOGENICITY_FEATURES, X_test, y_test, cv_results
+    return rf_best, PATHOGENICITY_FEATURES, X_test, y_test, cv_results, meta_test
 
 
 

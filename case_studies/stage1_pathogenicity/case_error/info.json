@@ -1,6 +1,6 @@
 {
   "label": "Misclassification (False Positive)",
-  "description": "The model predicted Non-functional but the true label is Functional. This false positive reveals which features misled the model.",
+  "description": "The model predicted Non-functional but the true label is Functional. This confident false positive reveals which features misled the model.",
   "features": {
     "Grantham_Score": 121.0,
     "REVEL": 0.926,
@@ -16,5 +16,8 @@
   "confidence": 0.9808,
   "prob_class_0": 0.0192,
   "prob_class_1": 0.9808,
+  "mut_id": "2487",
+  "individual_id": "22488.0",
+  "prot_description": "p.E198V",
   "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/case_error/shap_waterfall.png"
 }

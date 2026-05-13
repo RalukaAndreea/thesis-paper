@@ -45,6 +45,11 @@ def test_significance(name, X_arr, y_arr, model, seed, n_permutations=100):
     print(f"\n  Binomial test (hold-out {n_correct}/{n_total}):")
     print(f"    accuracy = {n_correct/n_total:.4f}, p = {binom.pvalue:.2e}  {'✓ significant' if binom.pvalue < 0.05 else '✗ not significant'}")
 
+    probabilities = model1.predict_proba(X1.values.astype(float))
+
+    # Example: Print the predicted probabilities
+    print(probabilities)
+
     # 4. Permutation test
     print(f"\n  Permutation test ({n_permutations} permutations)...")
     score, perm_scores, perm_p = permutation_test_score(
@@ -57,7 +62,10 @@ def test_significance(name, X_arr, y_arr, model, seed, n_permutations=100):
 
 if __name__ == "__main__":
     # Stage 1
-    X1, y1 = _load_pathogenicity_training_data()
+    returned_values = _load_pathogenicity_training_data()
+    print(len(returned_values))  # Check the number of returned values
+
+    X1, y1, _ = _load_pathogenicity_training_data()
     model1 = RandomForestClassifier(
         max_depth=12, min_samples_leaf=4, min_samples_split=2,
         n_estimators=200, class_weight="balanced", random_state=42, n_jobs=-1

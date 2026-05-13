@@ -334,7 +334,7 @@ def page_current_results():
     # Download button
     csv_data = results_df[display_cols].to_csv(index=False)
     st.download_button(
-        "⬇️ Download Results CSV",
+        " Download Results CSV",
         csv_data,
         file_name=f"tp53_results_{filename}.csv",
         mime="text/csv",
@@ -405,7 +405,7 @@ def page_past_results():
         c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
         with c1:
             st.markdown(f"**{upload['filename']}**")
-            st.caption(f"📅 {date_str}")
+            st.caption(f" {date_str}")
         with c2:
             st.markdown(f"**{upload['num_variants']}** variants")
         with c3:
@@ -535,7 +535,9 @@ def page_explainability():
         "predictions across **all** test samples."
     )
 
-    tab_bee, tab_bar = st.tabs(["Beeswarm (Summary)", "Mean |SHAP| (Bar)"])
+    tab_bee, tab_bar, tab_dep = st.tabs(
+        ["Beeswarm (Summary)", "Mean |SHAP| (Bar)", "Dependence Plots"]
+    )
 
     summary_img = os.path.join(stage_path, "global_shap_summary.png")
     bar_img = os.path.join(stage_path, "global_shap_bar.png")
@@ -560,19 +562,41 @@ def page_explainability():
         else:
             st.info("Bar plot not found.")
 
+    with tab_dep:
+        dep_data = summary.get("dependence_plots", [])
+        if dep_data:
+            st.caption(
+                "Each plot shows one feature's value (x-axis) vs. its SHAP impact "
+                "(y-axis). The color represents the feature with the strongest "
+                "interaction, auto-detected by SHAP."
+            )
+            for dep in dep_data:
+                dep_path = dep.get("path", "")
+                feat = dep.get("feature", "?")
+                if os.path.exists(dep_path):
+                    st.image(dep_path, use_container_width=True)
+                else:
+                    st.info(f"Dependence plot for {feat} not found.")
+        else:
+            st.info("No dependence plots available. Re-run `python explainability.py`.")
+
     # ── Case Studies ──
     st.divider()
-    st.subheader("🔬 Individual Case Studies")
+    st.subheader(" Individual Case Studies")
     st.caption(
-        "Four representative variants extracted from the hold-out test set. "
-        "Each includes a SHAP waterfall explaining the model's reasoning."
+        "Five representative variants extracted from the hold-out test set: "
+        "a confident correct prediction for each class, two borderline edge cases "
+        "(one correct, one incorrect), and a confident misclassification. "
+        "Each includes the IARC MUT_ID, Individual_ID, and a SHAP waterfall "
+        "explaining the model's reasoning."
     )
 
     CASE_LABELS = {
-        "true_positive": ("True Positive", "success"),
-        "true_negative": ("True Negative", "success"),
-        "edge_case":     (" Edge Case", "warning"),
-        "error":         (" Misclassification", "error"),
+        "true_positive":      (" True Positive",               "success"),
+        "true_negative":      (" True Negative",               "success"),
+        "edge_case_correct":  (" Edge Case — Correct",        "warning"),
+        "edge_case_incorrect":(" Edge Case — Incorrect",      "warning"),
+        "error":              (" Misclassification",           "error"),
     }
 
     cases_data = summary.get("cases", {})
@@ -587,6 +611,19 @@ def page_explainability():
         with st.expander(f"{display_name} — {case.get('label', '')}", expanded=False):
             # Description
             st.markdown(f"**{case.get('description', '')}**")
+
+            # IARC database identifiers
+            mut_id   = case.get("mut_id", "N/A")
+            ind_id   = case.get("individual_id", "N/A")
+            prot_desc = case.get("prot_description", "N/A")
+            st.markdown(
+                f"🔬 **MUT\_ID:** `{mut_id}` &nbsp;|&nbsp; "
+                f"👤 **Individual\_ID:** `{ind_id}` &nbsp;|&nbsp; "
+                f"🧬 **Mutation:** `{prot_desc}`",
+                unsafe_allow_html=True,
+            )
+
+            st.divider()
 
             # Prediction details
             pred_col, true_col, conf_col = st.columns(3)
@@ -681,7 +718,7 @@ def main():
         )
 
         st.divider()
-        if st.button("🚪 Logout", use_container_width=True):
+        if st.button(" Logout", use_container_width=True):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()

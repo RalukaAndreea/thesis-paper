@@ -11,6 +11,23 @@
   },
   "global_shap_summary": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/global_shap_summary.png",
   "global_shap_bar": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/global_shap_bar.png",
+  "dependence_plots": [
+    {
+      "feature": "BAYESDEL",
+      "path": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/dependence_bayesdel.png",
+      "rank": 1
+    },
+    {
+      "feature": "REVEL",
+      "path": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/dependence_revel.png",
+      "rank": 2
+    },
+    {
+      "feature": "Is_Hotspot",
+      "path": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/dependence_is_hotspot.png",
+      "rank": 3
+    }
+  ],
   "cases": {
     "true_positive": {
       "label": "Clear-Cut Non-functional",
@@ -30,6 +47,9 @@
       "confidence": 0.993,
       "prob_class_0": 0.007,
       "prob_class_1": 0.993,
+      "mut_id": "2083",
+      "individual_id": "3660.0",
+      "prot_description": "p.V172D",
       "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/case_true_positive/shap_waterfall.png"
     },
     "true_negative": {
@@ -50,11 +70,37 @@
       "confidence": 0.9683,
       "prob_class_0": 0.9683,
       "prob_class_1": 0.0317,
+      "mut_id": "1789",
+      "individual_id": "17.0",
+      "prot_description": "p.T155A",
       "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/case_true_negative/shap_waterfall.png"
     },
-    "edge_case": {
-      "label": "Edge Case (Borderline)",
-      "description": "This variant sits on the decision boundary \u2014 the model's probability is near 50%, making it the least confident prediction. It was incorrectly classified.",
+    "edge_case_correct": {
+      "label": "Edge Case (Correctly Classified)",
+      "description": "This variant sits on the decision boundary \u2014 the model's probability is near 50%, making it the least confident prediction. Despite the uncertainty, the model still classified it correctly.",
+      "features": {
+        "Grantham_Score": 121.0,
+        "REVEL": 0.723,
+        "BAYESDEL": 0.2827,
+        "AGVGDClass": 0.0,
+        "SIFTClass": 1.0,
+        "Polyphen2": 2.0,
+        "Is_Hotspot": 0.0,
+        "Is_CpG": 0.0
+      },
+      "true_label": "Functional",
+      "predicted_label": "Functional",
+      "confidence": 0.5151,
+      "prob_class_0": 0.5151,
+      "prob_class_1": 0.4849,
+      "mut_id": "2777",
+      "individual_id": "11195.0",
+      "prot_description": "p.V217E",
+      "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/case_edge_case_correct/shap_waterfall.png"
+    },
+    "edge_case_incorrect": {
+      "label": "Edge Case (Incorrectly Classified)",
+      "description": "This variant sits on the decision boundary. Because of conflicting feature signals and low confidence, the model tipped the wrong way and classified it incorrectly.",
       "features": {
         "Grantham_Score": 83.0,
         "REVEL": 0.732,
@@ -70,11 +116,14 @@
       "confidence": 0.5046,
       "prob_class_0": 0.4954,
       "prob_class_1": 0.5046,
-      "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/case_edge_case/shap_waterfall.png"
+      "mut_id": "4471",
+      "individual_id": "17452.0",
+      "prot_description": "p.Y327H",
+      "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/case_edge_case_incorrect/shap_waterfall.png"
     },
     "error": {
       "label": "Misclassification (False Positive)",
-      "description": "The model predicted Non-functional but the true label is Functional. This false positive reveals which features misled the model.",
+      "description": "The model predicted Non-functional but the true label is Functional. This confident false positive reveals which features misled the model.",
       "features": {
         "Grantham_Score": 121.0,
         "REVEL": 0.926,
@@ -90,6 +139,9 @@
       "confidence": 0.9808,
       "prob_class_0": 0.0192,
       "prob_class_1": 0.9808,
+      "mut_id": "2487",
+      "individual_id": "22488.0",
+      "prot_description": "p.E198V",
       "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/case_error/shap_waterfall.png"
     }
   }
