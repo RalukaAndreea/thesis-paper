@@ -15,9 +15,9 @@ IARC_TP53_DB/
 # Exceptions (if you have small csvs to keep, uncomment below)
 # !pipeline_results.csv
 
-# Pre-trained Models
-models/*.pkl
-*.pkl
+# Pre-trained Models (Uncomment to ignore if they get too large)
+# models/*.pkl
+# *.pkl
 
 # Databases and Uploads
 tp53_app.db
