@@ -1,6 +1,6 @@
 # 🧬 TP53 Variant Classification Pipeline
 
-> A two-stage machine learning pipeline for classifying TP53 gene variants by **pathogenicity** (functional vs. non-functional) and **origin** (germline vs. somatic), built on the IARC TP53 Database and delivered through an interactive Streamlit web application.
+> A machine learning pipeline for classifying TP53 gene variants by **pathogenicity** (functional vs. non-functional), built on the IARC TP53 Database and delivered through an interactive Streamlit web application.
 
 ---
 
@@ -9,14 +9,12 @@
 - [Overview](#overview)
 - [Backend — Machine Learning Pipeline](#backend--machine-learning-pipeline)
   - [Training Data: IARC TP53 Database](#training-data-iarc-tp53-database)
-  - [Two-Stage Classification Architecture](#two-stage-classification-architecture)
-  - [Stage 1 — Pathogenicity Classification](#stage-1--pathogenicity-classification)
-  - [Stage 2a — Origin Classification (All Variants)](#stage-2a--origin-classification-all-variants)
-  - [Stage 2b — Origin Classification (Non-Functional Only)](#stage-2b--origin-classification-non-functional-only)
+  - [Classification Architecture](#classification-architecture)
+  - [Pathogenicity Classification](#pathogenicity-classification)
   - [Feature Engineering](#feature-engineering)
   - [Rule-Based Overrides](#rule-based-overrides)
   - [Model Training & Optimization](#model-training--optimization)
-  - [Statistical Validation](#statistical-validation)
+  - [Explainability (SHAP)](#explainability-shap)
 - [Frontend — Streamlit Web Application](#frontend--streamlit-web-application)
 - [Project Structure](#project-structure)
 - [Installation & Setup](#installation--setup)
@@ -29,14 +27,15 @@
 
 ## Overview
 
-TP53 is the most frequently mutated gene in human cancer. Mutations in TP53 can be **germline** (inherited, predisposing to Li-Fraumeni syndrome) or **somatic** (acquired during tumor development), and they can result in either **functional** (benign) or **non-functional** (pathogenic) protein. Distinguishing between these categories is critical for clinical decision-making, genetic counseling, and cancer research.
+TP53 is the most frequently mutated gene in human cancer. Mutations in TP53 can result in either **functional** (benign) or **non-functional** (pathogenic) protein. Distinguishing between these categories is critical for clinical decision-making, genetic counseling, and cancer research.
 
 This project implements an end-to-end machine learning pipeline that:
 
 1. **Ingests** patient variant data in standard VCF format
 2. **Engineers** biologically meaningful features (Grantham distance, REVEL, BayesDel, AGVGD, SIFT, PolyPhen-2, and more)
-3. **Classifies** each variant across two stages using Random Forest models trained on the IARC TP53 Database (Release 21)
-4. **Delivers** results through a modern Streamlit web interface with user authentication, result history, and publication-ready visualizations
+3. **Classifies** each variant using robust machine learning models (Random Forest and XGBoost) trained on the IARC TP53 Database (Release 21)
+4. **Explains** model predictions using SHAP (SHapley Additive exPlanations) analysis
+5. **Delivers** results through a modern Streamlit web interface with user authentication, result history, and publication-ready visualizations
 
 ---
 
@@ -65,11 +64,11 @@ The IARC data is **not synthetically generated** — it represents real, clinica
 
 ---
 
-### Two-Stage Classification Architecture
+### Classification Architecture
 
-The pipeline uses a **two-stage cascading architecture** to solve two biologically distinct classification problems:
+The pipeline uses two parallel machine learning models to solve the pathogenicity classification problem:
 
-```
+```text
                     ┌─────────────────────────────────┐
                     │     Input: Patient VCF File      │
                     └─────────────┬───────────────────┘
@@ -79,27 +78,22 @@ The pipeline uses a **two-stage cascading architecture** to solve two biological
                           │ Feature Eng.    │
                           └───────┬────────┘
                                   │
-                    ┌─────────────▼─────────────────┐
-                    │   STAGE 1: Pathogenicity       │
-                    │   Functional vs Non-functional  │
-                    │   (Random Forest + GridSearchCV) │
-                    └──┬──────────────────────────┬──┘
-                       │                          │
-               ┌───────▼───────┐          ┌───────▼───────┐
-               │  Functional   │          │Non-functional │
-               │  (benign)     │          │ (pathogenic)  │
-               └───────┬───────┘          └───────┬───────┘
-                       │                          │
-              ┌────────▼────────┐       ┌─────────▼─────────┐
-              │ STAGE 2a: Origin│       │ STAGE 2b: Origin   │
-              │ Germline vs     │       │ Germline vs Somatic│
-              │ Somatic (All)   │       │ (Non-Functional)   │
-              └─────────────────┘       └────────────────────┘
+                 ┌────────────────┴────────────────┐
+                 │                                 │
+        ┌────────▼─────────┐              ┌────────▼─────────┐
+        │  Random Forest   │              │ XGBoost (Optuna) │
+        │  (GridSearchCV)  │              │                  │
+        └────────┬─────────┘              └────────┬─────────┘
+                 │                                 │
+         ┌───────┴───────┐                 ┌───────┴───────┐
+         ▼               ▼                 ▼               ▼
+   Functional     Non-functional     Functional     Non-functional
+    (benign)       (pathogenic)       (benign)       (pathogenic)
 ```
 
 ---
 
-### Stage 1 — Pathogenicity Classification
+### Pathogenicity Classification
 
 **Objective**: Determine whether a TP53 variant disrupts protein function.
 
@@ -120,44 +114,11 @@ The pipeline uses a **two-stage cascading architecture** to solve two biological
 | `Is_Hotspot` | Whether the mutation is at a known TP53 hotspot codon | IARC database |
 | `Is_CpG` | Whether the mutation occurs at a CpG dinucleotide site | IARC database |
 
-**Model**: Random Forest Classifier with `GridSearchCV` hyperparameter tuning over:
-- `n_estimators`: [200, 400, 600]
-- `max_depth`: [8, 12, 16, None]
-- `min_samples_split`: [2, 5, 10]
-- `min_samples_leaf`: [1, 2, 4]
+**Models**: 
+1. **Random Forest Classifier**: tuned with `GridSearchCV` over hyperparameters (`n_estimators`, `max_depth`, `min_samples_split`, `min_samples_leaf`).
+2. **XGBoost Classifier**: tuned via **Optuna** (50 trials) optimizing for weighted F1-score and using a robust `scale_pos_weight` to handle class imbalances.
 
-**Evaluation**: 5-fold Stratified Cross-Validation reporting Accuracy, Weighted F1, and AUC-ROC.
-
----
-
-### Stage 2a — Origin Classification (All Variants)
-
-**Objective**: Predict whether a variant is germline (inherited) or somatic (tumor-acquired) for all classified variants.
-
-**Features used** (8 features):
-
-| Feature | Description |
-|---|---|
-| `VAF` | Variant Allele Frequency — germline variants cluster ~0.50, somatic variants are lower and more variable |
-| `DP` | Total read depth at the variant position |
-| `REVEL` | Pathogenicity score |
-| `BAYESDEL` | Deleteriousness score |
-| `Is_Hotspot` | Hotspot flag |
-| `TCGA_COUNT` | Recurrence count in TCGA/ICGC/GENIE |
-| `Is_Missense` | Whether the variant is a missense mutation |
-| `Is_CpG` | CpG site flag (somatic mutagenesis signature) |
-
-**Training data**: Real unique germline and somatic variants from the IARC database with balanced downsampling (somatic capped at 2× germline count). VAF and DP are simulated with biologically realistic distributions to reflect the known differences between germline heterozygous calls (~50% VAF) and subclonal somatic mutations (~5–40% VAF).
-
-**Model**: Random Forest Classifier (n_estimators=300, max_depth=12).
-
----
-
-### Stage 2b — Origin Classification (Non-Functional Only)
-
-**Objective**: A specialized origin classifier trained exclusively on non-functional (pathogenic) variants. Non-functional variants have different clinical significance when germline vs. somatic, making this distinction particularly important.
-
-This model is applied only to variants classified as "Non-functional" by Stage 1, providing a more refined prediction for clinically actionable mutations.
+**Evaluation**: 5-fold Stratified Cross-Validation reporting Accuracy, Weighted F1, AUC-ROC, Sensitivity, and Specificity. Both models select their optimal decision threshold by maximizing Youden's J statistic ($TPR - FPR$) on the out-of-fold validation probabilities, ensuring unbiased held-out performance.
 
 ---
 
@@ -192,31 +153,31 @@ The ML model is trained on **missense variants only** (amino acid substitutions)
 
 ### Model Training & Optimization
 
-Models are trained via `pretrain_models.py` and saved as serialized `.pkl` files for fast loading:
+Models are trained via `pretrain_models.py` (for RF) and `pretrain_models_xgboost.py` (for XGBoost), and saved as serialized `.pkl` files for fast loading:
 
-```
+```text
 models/
-├── pathogenicity_model.pkl    # Stage 1 (GridSearchCV-optimized RF)
-├── origin_model.pkl           # Stage 2a (all variants)
-└── nf_origin_model.pkl        # Stage 2b (non-functional only)
+├── pathogenicity_model.pkl          # Random Forest model
+├── optimal_threshold.pkl            # RF Youden's J optimal threshold
+├── xgb_pathogenicity_model.pkl      # XGBoost model
+└── xgb_optimal_threshold.pkl        # XGBoost Youden's J optimal threshold
 ```
 
-The full training + evaluation pipeline is executed by `run_pipeline.py`, which:
-1. Generates synthetic VCF files from real IARC data
-2. Trains all three models with cross-validation
-3. Classifies a mock patient VCF
-4. Extracts feature importances
-5. Generates thesis-ready visualizations (ROC curves, confusion matrices, feature importance charts, model comparison)
+The full training + evaluation pipeline is executed by `run_pipeline.py` (RF) and `run_pipeline_xgboost.py` (XGB), which:
+1. Train the models with cross-validation
+2. Classify a mock patient VCF
+3. Extract feature importances
+4. Generate thesis-ready visualizations (ROC curves, confusion matrices, feature importance charts, model comparison)
 
 ---
 
-### Statistical Validation
+### Explainability (SHAP)
 
-`statistical_significance.py` validates that the models are learning real patterns, not noise:
+The pipeline integrates **SHAP (SHapley Additive exPlanations)** via `TreeExplainer` to interpret the model predictions on the probability scale.
 
-- **One-sample t-test**: Model CV accuracy vs. majority-class baseline
-- **Binomial test**: Hold-out accuracy vs. random chance
-- **Permutation test** (100 permutations): Compares true model score against a null distribution of shuffled labels
+Two scopes of explainability are provided:
+1. **Global/Training Explainability**: Visualizes the overall importance and directionality of features across the entire training dataset (n=1093) using beeswarm, bar, and dependence plots.
+2. **Local/Case Studies**: Extracts 5 representative variants from the held-out test set for each model (True Positive, True Negative, Edge Case Correct, Edge Case Incorrect, Misclassification) and generates individual force plots to explain *why* the model made a specific prediction.
 
 ---
 
@@ -227,7 +188,8 @@ The web interface (`app.py`) provides:
 - **User Authentication**: Registration and login with bcrypt-hashed passwords (SQLite backend via `database.py`)
 - **VCF Upload**: Drag-and-drop VCF file upload with real-time pipeline execution
 - **Results Dashboard**: Interactive data table with classification predictions, confidence scores, and downloadable CSV export
-- **Visualizations**: Class distribution donut charts for all three classification stages
+- **Explainability Tab**: View global SHAP training plots and dynamic local SHAP force plots for selected case study variants across both models.
+- **Visualizations**: Class distribution donut charts, feature correlation heatmaps, and feature importance.
 - **Result History**: Browse, sort, and manage past uploads with delete functionality
 
 The UI uses a modern dark theme with gradient accents, custom CSS, and the Inter typeface.
@@ -240,42 +202,57 @@ The UI uses a modern dark theme with gradient accents, custom CSS, and the Inter
 Tp53 variants analysis/
 │
 ├── app.py                          # Streamlit web application (frontend)
-├── pipeline.py                     # Core ML pipeline (parsing, feature engineering, training, classification)
-├── pretrain_models.py              # Pre-train and serialize models for fast loading
-├── run_pipeline.py                 # Full pipeline execution script (train + classify + visualize)
-├── visualizations.py               # Thesis-quality plot generation (ROC, confusion matrix, feature importance)
+├── pipeline.py                     # Core RF pipeline (parsing, feature engineering, training)
+├── pipeline_xgboost.py             # XGBoost optimization and training pipeline
+├── pipeline_revel.py               # RF pipeline for REVEL ablation testing
+├── pretrain_models.py              # Pre-train and serialize RF models for fast loading
+├── pretrain_models_xgboost.py      # Pre-train and serialize XGB models for fast loading
+├── run_pipeline.py                 # RF pipeline execution script
+├── run_pipeline_xgboost.py         # XGBoost pipeline execution script
+├── run_pipeline_revel.py           # Ablation testing execution script
+├── explainability.py               # SHAP explainability generation for RF
+├── explainability_xgboost.py       # SHAP explainability generation for XGBoost
 ├── database.py                     # SQLite user/upload management with bcrypt authentication
 ├── grantham.py                     # Full 20×20 Grantham distance matrix and classification
-├── generate_vcf.py                 # Generate synthetic VCFs from real IARC data (for testing)
-├── generate_novel_vcf.py           # Generate VCFs with novel, unseen mutations (generalization testing)
-├── statistical_significance.py     # Statistical tests (t-test, binomial, permutation)
-├── germline.py                     # Exploratory data analysis — germline dataset
-├── somatic.py                      # Exploratory data analysis — somatic/tumor dataset
 │
-├── GermlineDownload_r21.csv        # IARC TP53 Germline Database (R21)
-├── TumorVariantDownload_r21-2.csv  # IARC TP53 Tumor Variant Database (R21)
+├── IARC_TP53_DB/
+│   ├── GermlineDownload_r21.csv        # IARC TP53 Germline Database (R21)
+│   └── TumorVariantDownload_r21-2.csv  # IARC TP53 Tumor Variant Database (R21)
 │
-├── models/                         # Pre-trained model artifacts (.pkl)
+├── IARC TP53 study/
+│   ├── Germline/
+│   │   └── germline.py                 # Exploratory data analysis — germline dataset
+│   └── Somatic/
+│       └── somatic.py                  # Exploratory data analysis — somatic/tumor dataset
+│
+├── VCF/
+│   ├── gen_vcf_files/
+│   │   ├── generate_vcf.py             # Generate synthetic VCFs from real IARC data
+│   │   └── generate_novel_vcf.py       # Generate VCFs with novel unseen mutations
+│   ├── Generated vcf files/            # Generated mock patient VCFs for testing
+│   └── Case_Studies_VCF/               # Edge case VCFs for testing
+│
+├── PLOTS/                              # Plotting scripts and generated visualizations
+│   ├── visualizations.py               # Thesis-quality plot generation for RF
+│   ├── visualizations_xgboost.py       # Thesis-quality plot generation for XGBoost
+│   ├── visualizations_revel.py         # Thesis-quality plot generation for ablation
+│   └── *.png                           # Generated visualizations
+│
+├── models/                             # Pre-trained model artifacts (.pkl)
 │   ├── pathogenicity_model.pkl
-│   ├── origin_model.pkl
-│   └── nf_origin_model.pkl
+│   ├── optimal_threshold.pkl
+│   ├── xgb_pathogenicity_model.pkl
+│   └── xgb_optimal_threshold.pkl
 │
-├── uploads/                        # User upload storage (per-user, timestamped)
-├── tp53_app.db                     # SQLite database (users + upload records)
+├── uploads/                            # User upload storage (per-user, timestamped)
+├── case_studies/                       # Generated cases for explainability
+├── Feature_importance/                 # Feature importance tables
+├── tp53_app.db                         # SQLite database (users + upload records)
 │
-├── mock_germline.vcf               # Test VCF — germline variants (sampled from IARC)
-├── mock_somatic.vcf                # Test VCF — somatic variants (sampled from IARC)
-├── mock_patient.vcf                # Test VCF — mixed patient (germline + somatic)
-├── novel_germline.vcf              # Test VCF — novel unseen germline mutations
-├── novel_somatic.vcf               # Test VCF — novel unseen somatic mutations
-├── novel_patient.vcf               # Test VCF — novel mixed patient
-│
-├── pipeline_results.csv            # Example pipeline output
-├── cv_model_comparison.json        # Cross-validation metrics
-├── feature_importances_*.csv       # Feature importance tables
-│
-├── *.png                           # Generated visualizations
-└── requirements.txt                # Python dependencies
+├── pipeline_results.csv                # Example pipeline output
+├── cv_model_comparison.json            # Cross-validation metrics (RF)
+├── cv_model_comparison_xgboost.json    # Cross-validation metrics (XGBoost)
+└── requirements.txt                    # Python dependencies
 ```
 
 ---
@@ -304,6 +281,7 @@ pip install -r requirements.txt
 
 # 4. Pre-train the models (required before first run)
 python pretrain_models.py
+python pretrain_models_xgboost.py
 
 # 5. Launch the web application
 streamlit run app.py
@@ -331,7 +309,7 @@ scipy
 1. Run `streamlit run app.py`
 2. Create an account or log in
 3. Upload a VCF file containing TP53 variants
-4. View classification results (pathogenicity, origin, confidence scores)
+4. View classification results (pathogenicity and confidence scores)
 5. Download results as CSV
 6. Access past results from the sidebar
 
@@ -343,15 +321,14 @@ python run_pipeline.py
 
 # Pre-train models only (for the web app)
 python pretrain_models.py
+python pretrain_models_xgboost.py
 
 # Generate test VCF files from the IARC data
-python generate_vcf.py
+python VCF/gen_vcf_files/generate_vcf.py
 
 # Generate novel mutation VCFs (for generalization testing)
-python generate_novel_vcf.py
+python VCF/gen_vcf_files/generate_novel_vcf.py
 
-# Run statistical significance tests
-python statistical_significance.py
 ```
 
 ---
@@ -360,11 +337,12 @@ python statistical_significance.py
 
 The pipeline generates publication-ready visualizations:
 
-- **ROC Curves** — with AUC scores and optimal threshold markers (Stages 1, 2a, 2b)
+- **ROC Curves** — with AUC scores and optimal threshold markers
 - **Confusion Matrices** — normalized heatmaps with count and percentage annotations
-- **Feature Importance Charts** — horizontal bar charts ranked by Gini importance
-- **Model Comparison** — grouped bar chart comparing Accuracy, Precision, Recall, and F1 across all stages
-- **Class Distribution** — donut charts showing prediction breakdowns for each stage
+- **Feature Importance Charts** — horizontal bar charts ranked by Gini/Gain importance
+- **SHAP Summary Plots** — beeswarm and bar charts for global explainability
+- **SHAP Force Plots** — individual variant explanation plots for case studies
+- **Feature Correlation Heatmaps** — visualizing feature independence
 
 All plots use a consistent dark-themed visual style designed for thesis inclusion.
 
@@ -374,13 +352,12 @@ All plots use a consistent dark-themed visual style designed for thesis inclusio
 
 | Category | Technologies |
 |---|---|
-| **Machine Learning** | scikit-learn (Random Forest, GridSearchCV, StratifiedKFold, cross_validate) |
+| **Machine Learning** | scikit-learn (Random Forest, CV), XGBoost, Optuna, SHAP |
 | **Data Processing** | pandas, NumPy |
 | **Visualization** | matplotlib |
 | **Web Framework** | Streamlit |
 | **Database** | SQLite3 |
 | **Authentication** | bcrypt |
-| **Statistical Testing** | SciPy (t-test, binomial test, permutation test) |
 | **Model Serialization** | joblib |
 
 ---

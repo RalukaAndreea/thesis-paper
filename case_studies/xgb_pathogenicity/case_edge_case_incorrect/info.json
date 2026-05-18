@@ -1,0 +1,23 @@
+{
+  "label": "Edge Case (Incorrectly Classified)",
+  "description": "This variant sits on the decision boundary. Because of conflicting feature signals and low confidence, the model tipped the wrong way and classified it incorrectly.",
+  "features": {
+    "Grantham_Score": 125.0,
+    "REVEL": 0.855,
+    "BAYESDEL": 0.2549,
+    "AGVGDClass": 2.0,
+    "SIFTClass": 1.0,
+    "Polyphen2": 1.0,
+    "Is_Hotspot": 0.0,
+    "Is_CpG": 1.0
+  },
+  "true_label": "Non-functional",
+  "predicted_label": "Functional",
+  "confidence": 0.4652,
+  "prob_class_0": 0.4652,
+  "prob_class_1": 0.5348,
+  "mut_id": "4544",
+  "individual_id": "3185.0",
+  "prot_description": "p.R333G",
+  "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/case_edge_case_incorrect/shap_waterfall.png"
+}

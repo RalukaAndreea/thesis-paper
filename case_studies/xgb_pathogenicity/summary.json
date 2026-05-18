@@ -1,0 +1,148 @@
+{
+  "stage_name": "XGBoost \u2014 Pathogenicity",
+  "class_names": [
+    "Functional",
+    "Non-functional"
+  ],
+  "test_set_size": 274,
+  "class_distribution": {
+    "Functional": 114,
+    "Non-functional": 160
+  },
+  "global_shap_summary": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/global_shap_summary.png",
+  "global_shap_bar": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/global_shap_bar.png",
+  "dependence_plots": [
+    {
+      "feature": "BAYESDEL",
+      "path": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/dependence_bayesdel.png",
+      "rank": 1
+    },
+    {
+      "feature": "REVEL",
+      "path": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/dependence_revel.png",
+      "rank": 2
+    },
+    {
+      "feature": "Is_Hotspot",
+      "path": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/dependence_is_hotspot.png",
+      "rank": 3
+    }
+  ],
+  "cases": {
+    "true_positive": {
+      "label": "Clear-Cut Non-functional",
+      "description": "The model correctly identified this variant as Non-functional with very high confidence. All major features align with the positive class.",
+      "features": {
+        "Grantham_Score": 194.0,
+        "REVEL": 0.981,
+        "BAYESDEL": 0.5956,
+        "AGVGDClass": 6.0,
+        "SIFTClass": 1.0,
+        "Polyphen2": 2.0,
+        "Is_Hotspot": 1.0,
+        "Is_CpG": 0.0
+      },
+      "true_label": "Non-functional",
+      "predicted_label": "Non-functional",
+      "confidence": 0.944,
+      "prob_class_0": 0.056,
+      "prob_class_1": 0.944,
+      "mut_id": "1325",
+      "individual_id": "1906.0",
+      "prot_description": "p.Y126C",
+      "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/case_true_positive/shap_waterfall.png"
+    },
+    "true_negative": {
+      "label": "Clear-Cut Functional",
+      "description": "The model correctly identified this variant as Functional with very high confidence. Feature values are consistent with the negative class.",
+      "features": {
+        "Grantham_Score": 56.0,
+        "REVEL": 0.36,
+        "BAYESDEL": -0.1171,
+        "AGVGDClass": 0.0,
+        "SIFTClass": 0.0,
+        "Polyphen2": 0.0,
+        "Is_Hotspot": 0.0,
+        "Is_CpG": 0.0
+      },
+      "true_label": "Functional",
+      "predicted_label": "Functional",
+      "confidence": 0.8698,
+      "prob_class_0": 0.8698,
+      "prob_class_1": 0.1302,
+      "mut_id": "1077",
+      "individual_id": "11148.0",
+      "prot_description": "p.S106G",
+      "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/case_true_negative/shap_waterfall.png"
+    },
+    "edge_case_correct": {
+      "label": "Edge Case (Correctly Classified)",
+      "description": "This variant sits on the decision boundary \u2014 the model's probability is near 50%, making it the least confident prediction. Despite the uncertainty, the model still classified it correctly.",
+      "features": {
+        "Grantham_Score": 29.0,
+        "REVEL": 0.836,
+        "BAYESDEL": 0.301,
+        "AGVGDClass": 0.0,
+        "SIFTClass": 1.0,
+        "Polyphen2": 2.0,
+        "Is_Hotspot": 0.0,
+        "Is_CpG": 1.0
+      },
+      "true_label": "Non-functional",
+      "predicted_label": "Non-functional",
+      "confidence": 0.5519,
+      "prob_class_0": 0.4481,
+      "prob_class_1": 0.5519,
+      "mut_id": "3903",
+      "individual_id": "1214.0",
+      "prot_description": "p.R283H",
+      "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/case_edge_case_correct/shap_waterfall.png"
+    },
+    "edge_case_incorrect": {
+      "label": "Edge Case (Incorrectly Classified)",
+      "description": "This variant sits on the decision boundary. Because of conflicting feature signals and low confidence, the model tipped the wrong way and classified it incorrectly.",
+      "features": {
+        "Grantham_Score": 125.0,
+        "REVEL": 0.855,
+        "BAYESDEL": 0.2549,
+        "AGVGDClass": 2.0,
+        "SIFTClass": 1.0,
+        "Polyphen2": 1.0,
+        "Is_Hotspot": 0.0,
+        "Is_CpG": 1.0
+      },
+      "true_label": "Non-functional",
+      "predicted_label": "Functional",
+      "confidence": 0.4652,
+      "prob_class_0": 0.4652,
+      "prob_class_1": 0.5348,
+      "mut_id": "4544",
+      "individual_id": "3185.0",
+      "prot_description": "p.R333G",
+      "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/case_edge_case_incorrect/shap_waterfall.png"
+    },
+    "error": {
+      "label": "Misclassification (False Positive)",
+      "description": "The model predicted Non-functional but the true label is Functional. This confident false positive reveals which features misled the model.",
+      "features": {
+        "Grantham_Score": 121.0,
+        "REVEL": 0.926,
+        "BAYESDEL": 0.5814,
+        "AGVGDClass": 6.0,
+        "SIFTClass": 1.0,
+        "Polyphen2": 2.0,
+        "Is_Hotspot": 1.0,
+        "Is_CpG": 0.0
+      },
+      "true_label": "Functional",
+      "predicted_label": "Non-functional",
+      "confidence": 0.941,
+      "prob_class_0": 0.059,
+      "prob_class_1": 0.941,
+      "mut_id": "2487",
+      "individual_id": "22488.0",
+      "prot_description": "p.E198V",
+      "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/case_error/shap_waterfall.png"
+    }
+  }
+}

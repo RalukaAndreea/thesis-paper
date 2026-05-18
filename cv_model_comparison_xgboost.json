@@ -1,0 +1,45 @@
+{
+  "xgb_accuracy": {
+    "mean": 0.7933,
+    "std": 0.0188
+  },
+  "xgb_f1": {
+    "mean": 0.7943,
+    "std": 0.0186
+  },
+  "xgb_auc": {
+    "mean": 0.8488,
+    "std": 0.0214
+  },
+  "xgb_sensitivity": {
+    "mean": 0.75,
+    "std": 0.0481
+  },
+  "xgb_specificity": {
+    "mean": 0.8532,
+    "std": 0.032
+  },
+  "test_sensitivity": 0.78125,
+  "test_specificity": 0.8421052631578947,
+  "best_model": "XGBoost (Optuna)",
+  "best_params": {
+    "n_estimators": 300,
+    "max_depth": 4,
+    "learning_rate": 0.04100098143876303,
+    "subsample": 0.6242034539128029,
+    "colsample_bytree": 0.844709389848556,
+    "min_child_weight": 10,
+    "gamma": 4.388409969894904,
+    "reg_alpha": 2.479462693650236e-07,
+    "reg_lambda": 1.751648491341276
+  },
+  "optimal_threshold": 0.5470526039600372,
+  "per_fold_thresholds": [
+    0.5432949662208557,
+    0.595386266708374,
+    0.6142873764038086,
+    0.49906742572784424,
+    0.4832269847393036
+  ],
+  "n_trials": 50
+}

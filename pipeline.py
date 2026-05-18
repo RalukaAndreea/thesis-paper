@@ -6,9 +6,8 @@ from sklearn.model_selection import (
     train_test_split,
     StratifiedKFold,
     GridSearchCV,
-    cross_validate,
 )
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, roc_curve, f1_score, accuracy_score, roc_auc_score, recall_score
 
 from grantham import get_grantham_score, classify_grantham
 
@@ -135,17 +134,17 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Fill missing REVEL & BAYESDEL
     # REVEL and BayesDel are only meaningful for missense variants.
-    # For missense: fill NaN with the missense-only median.
+    # For missense: fill NaN with the same fixed constants used during
+    # training (REVEL=0.5, BayesDel=0.0) so predictions are independent
+    # of what other variants happen to be in the same upload.
     # For non-missense: set to 0 (neutral) to avoid misleading the model.
     df["REVEL"]    = pd.to_numeric(df["REVEL"], errors="coerce")
     df["BAYESDEL"] = pd.to_numeric(df["BAYESDEL"], errors="coerce")
 
     is_miss = df["EFFECT"] == "missense"
-    revel_median = df.loc[is_miss, "REVEL"].median() if df.loc[is_miss, "REVEL"].notna().any() else 0.5
-    bd_median    = df.loc[is_miss, "BAYESDEL"].median() if df.loc[is_miss, "BAYESDEL"].notna().any() else 0.0
 
-    df.loc[is_miss, "REVEL"]    = df.loc[is_miss, "REVEL"].fillna(revel_median)
-    df.loc[is_miss, "BAYESDEL"] = df.loc[is_miss, "BAYESDEL"].fillna(bd_median)
+    df.loc[is_miss, "REVEL"]    = df.loc[is_miss, "REVEL"].fillna(0.5)
+    df.loc[is_miss, "BAYESDEL"] = df.loc[is_miss, "BAYESDEL"].fillna(0.0)
     df.loc[~is_miss, "REVEL"]   = 0.0
     df.loc[~is_miss, "BAYESDEL"] = 0.0
 
@@ -307,39 +306,98 @@ def train_pathogenicity_model(seed: int = 42) -> tuple:
     print(f"    Best params: {grid_search.best_params_}")
     print(f"    Best CV F1:  {grid_search.best_score_:.4f}")
 
-    # 2. 5-Fold CV — Random Forest
+    # 2. 5-Fold CV — Random Forest + per-fold optimal threshold
     print("\n  ── 5-Fold Cross-Validation: Random Forest ──")
-    rf_cv = cross_validate(
-        rf_best, X_train, y_train, cv=cv,
-        scoring=["accuracy", "f1_weighted", "roc_auc"],
-        return_train_score=False
-    )
-    rf_acc_mean  = rf_cv["test_accuracy"].mean()
-    rf_acc_std   = rf_cv["test_accuracy"].std()
-    rf_f1_mean   = rf_cv["test_f1_weighted"].mean()
-    rf_f1_std    = rf_cv["test_f1_weighted"].std()
-    rf_auc_mean  = rf_cv["test_roc_auc"].mean()
-    rf_auc_std   = rf_cv["test_roc_auc"].std()
-    print(f"    Accuracy:  {rf_acc_mean:.4f} ± {rf_acc_std:.4f}")
-    print(f"    F1 Score:  {rf_f1_mean:.4f} ± {rf_f1_std:.4f}")
-    print(f"    AUC:       {rf_auc_mean:.4f} ± {rf_auc_std:.4f}")
+    fold_accuracies = []
+    fold_f1s = []
+    fold_aucs = []
+    fold_thresholds = []
+    fold_sensitivities = []
+    fold_specificities = []
 
-    # 3. Evaluate on hold-out test set
-    y_pred = rf_best.predict(X_test)
+    for fold_idx, (tr_idx, val_idx) in enumerate(cv.split(X_train, y_train), 1):
+        X_tr_fold, X_val_fold = X_train[tr_idx], X_train[val_idx]
+        y_tr_fold, y_val_fold = y_train[tr_idx], y_train[val_idx]
+
+        # Clone the best estimator for this fold
+        fold_model = RandomForestClassifier(
+            **grid_search.best_params_,
+            class_weight="balanced", random_state=seed, n_jobs=-1
+        )
+        fold_model.fit(X_tr_fold, y_tr_fold)
+
+        # Out-of-fold probabilities
+        val_proba = fold_model.predict_proba(X_val_fold)[:, 1]
+
+        # Optimal threshold via Youden's J statistic
+        fpr_fold, tpr_fold, thresholds_fold = roc_curve(y_val_fold, val_proba)
+        j_scores = tpr_fold - fpr_fold
+        best_j_idx = np.argmax(j_scores)
+        fold_threshold = thresholds_fold[best_j_idx]
+        fold_thresholds.append(fold_threshold)
+
+        # Per-fold metrics using the fold's optimal threshold
+        val_pred = (val_proba >= fold_threshold).astype(int)
+        fold_accuracies.append(accuracy_score(y_val_fold, val_pred))
+        fold_f1s.append(f1_score(y_val_fold, val_pred, average="weighted"))
+        fold_aucs.append(roc_auc_score(y_val_fold, val_proba))
+        # Sensitivity = TP/(TP+FN): recall of class 1 (Non-functional)
+        fold_sensitivities.append(recall_score(y_val_fold, val_pred, pos_label=1, zero_division=0))
+        # Specificity = TN/(TN+FP): recall of class 0 (Functional)
+        fold_specificities.append(recall_score(y_val_fold, val_pred, pos_label=0, zero_division=0))
+
+        print(f"    Fold {fold_idx}: threshold={fold_threshold:.4f}, "
+              f"Acc={fold_accuracies[-1]:.4f}, AUC={fold_aucs[-1]:.4f}, "
+              f"Sens={fold_sensitivities[-1]:.4f}, Spec={fold_specificities[-1]:.4f}")
+
+    rf_acc_mean  = np.mean(fold_accuracies)
+    rf_acc_std   = np.std(fold_accuracies)
+    rf_f1_mean   = np.mean(fold_f1s)
+    rf_f1_std    = np.std(fold_f1s)
+    rf_auc_mean  = np.mean(fold_aucs)
+    rf_auc_std   = np.std(fold_aucs)
+    rf_sens_mean = np.mean(fold_sensitivities)
+    rf_sens_std  = np.std(fold_sensitivities)
+    rf_spec_mean = np.mean(fold_specificities)
+    rf_spec_std  = np.std(fold_specificities)
+    cv_optimal_threshold = float(np.mean(fold_thresholds))
+
+    print(f"\n    Accuracy:     {rf_acc_mean:.4f} ± {rf_acc_std:.4f}")
+    print(f"    F1 Score:     {rf_f1_mean:.4f} ± {rf_f1_std:.4f}")
+    print(f"    AUC:          {rf_auc_mean:.4f} ± {rf_auc_std:.4f}")
+    print(f"    Sensitivity:  {rf_sens_mean:.4f} ± {rf_sens_std:.4f}")
+    print(f"    Specificity:  {rf_spec_mean:.4f} ± {rf_spec_std:.4f}")
+    print(f"    CV Optimal Threshold: {cv_optimal_threshold:.4f} "
+          f"(per-fold: {[round(t,4) for t in fold_thresholds]})")
+
+    # 3. Evaluate on hold-out test set using the CV-derived threshold
+    y_test_proba = rf_best.predict_proba(X_test)[:, 1]
+    y_pred = (y_test_proba >= cv_optimal_threshold).astype(int)
     print("\n  ── Stage 1: Random Forest (hold-out test evaluation) ──")
+    print(f"    Using CV optimal threshold: {cv_optimal_threshold:.4f}")
+    test_sens = recall_score(y_test, y_pred, pos_label=1, zero_division=0)
+    test_spec = recall_score(y_test, y_pred, pos_label=0, zero_division=0)
     print(classification_report(
         y_test, y_pred,
         target_names=["Functional", "Non-functional"],
         zero_division=0
     ))
+    print(f"    Sensitivity: {test_sens:.4f}")
+    print(f"    Specificity: {test_spec:.4f}")
 
     # Package CV results for visualisations
     cv_results = {
-        "rf_accuracy":  (rf_acc_mean,  rf_acc_std),
-        "rf_f1":        (rf_f1_mean,   rf_f1_std),
-        "rf_auc":       (rf_auc_mean,  rf_auc_std),
-        "best_model":   "Random Forest",
-        "best_params":  grid_search.best_params_,
+        "rf_accuracy":      (rf_acc_mean,  rf_acc_std),
+        "rf_f1":            (rf_f1_mean,   rf_f1_std),
+        "rf_auc":           (rf_auc_mean,  rf_auc_std),
+        "rf_sensitivity":   (rf_sens_mean, rf_sens_std),
+        "rf_specificity":   (rf_spec_mean, rf_spec_std),
+        "test_sensitivity": float(test_sens),
+        "test_specificity": float(test_spec),
+        "best_model":       "Random Forest",
+        "best_params":      grid_search.best_params_,
+        "optimal_threshold": cv_optimal_threshold,
+        "per_fold_thresholds": fold_thresholds,
     }
 
     return rf_best, PATHOGENICITY_FEATURES, X_test, y_test, cv_results, meta_test
@@ -371,16 +429,21 @@ ORIGIN_LABELS        = {0: "Germline",   1: "Somatic"}
 
 
 def classify_variants(df: pd.DataFrame,
-                       path_model) -> pd.DataFrame:
+                       path_model,
+                       optimal_threshold: float = 0.5) -> pd.DataFrame:
     df = df.copy()
 
-    # Pathogenicity Classification
+    # Pathogenicity Classification (using CV-derived optimal threshold)
     X_path = df[PATHOGENICITY_FEATURES].values.astype(float)
-    df["Pathogenicity_Pred_Code"] = path_model.predict(X_path)
-    df["Pathogenicity_Prediction"] = df["Pathogenicity_Pred_Code"].map(PATHOGENICITY_LABELS)
-
     proba_path = path_model.predict_proba(X_path)
-    df["Pathogenicity_Confidence"] = proba_path.max(axis=1).round(3)
+    prob_positive = proba_path[:, 1]
+    df["Pathogenicity_Pred_Code"] = (prob_positive >= optimal_threshold).astype(int)
+    df["Pathogenicity_Prediction"] = df["Pathogenicity_Pred_Code"].map(PATHOGENICITY_LABELS)
+    # Confidence = probability of the *predicted* class (not max of both columns,
+    # which is wrong when the decision threshold differs from 0.5).
+    df["Pathogenicity_Confidence"] = np.where(
+        df["Pathogenicity_Pred_Code"] == 1, prob_positive, 1 - prob_positive
+    ).round(3)
 
     # Rule-based override for loss-of-function variants
     # Nonsense (stop-gain), frameshift, and splice variants always

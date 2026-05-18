@@ -1,0 +1,23 @@
+{
+  "label": "Clear-Cut Functional",
+  "description": "The model correctly identified this variant as Functional with very high confidence. Feature values are consistent with the negative class.",
+  "features": {
+    "Grantham_Score": 56.0,
+    "REVEL": 0.36,
+    "BAYESDEL": -0.1171,
+    "AGVGDClass": 0.0,
+    "SIFTClass": 0.0,
+    "Polyphen2": 0.0,
+    "Is_Hotspot": 0.0,
+    "Is_CpG": 0.0
+  },
+  "true_label": "Functional",
+  "predicted_label": "Functional",
+  "confidence": 0.8698,
+  "prob_class_0": 0.8698,
+  "prob_class_1": 0.1302,
+  "mut_id": "1077",
+  "individual_id": "11148.0",
+  "prot_description": "p.S106G",
+  "shap_waterfall": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/xgb_pathogenicity/case_true_negative/shap_waterfall.png"
+}

@@ -66,8 +66,9 @@ def main():
 
 
     # Step 6: Classify patient variants
-    print("\n▶ Step 6: Classifying patient variants...")
-    results_df = classify_variants(features_df, path_model)
+    optimal_threshold = cv_results.get("optimal_threshold", 0.5)
+    print(f"\n▶ Step 6: Classifying patient variants (threshold={optimal_threshold:.4f})...")
+    results_df = classify_variants(features_df, path_model, optimal_threshold=optimal_threshold)
 
     # Step 7: Feature importances
     print("\n▶ Step 7: Extracting feature importances...")
@@ -97,6 +98,7 @@ def main():
         path_X_test=path_X_test,
         path_y_test=path_y_test,
         output_dir=PROJECT_DIR,
+        optimal_threshold=optimal_threshold,
     )
 
     # Summary

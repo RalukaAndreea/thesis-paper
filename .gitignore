@@ -1,0 +1,27 @@
+# Virtual Environment
+venv/
+env/
+__pycache__/
+*.pyc
+
+# IDEs
+.idea/
+.vscode/
+
+# Large Datasets
+IARC_TP53_DB/
+*.csv
+
+# Exceptions (if you have small csvs to keep, uncomment below)
+# !pipeline_results.csv
+
+# Pre-trained Models
+models/*.pkl
+*.pkl
+
+# Databases and Uploads
+tp53_app.db
+uploads/
+
+# Streamlit
+.streamlit/

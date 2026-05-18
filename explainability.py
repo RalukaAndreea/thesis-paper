@@ -31,6 +31,7 @@ from pipeline import (
     train_pathogenicity_model,
     PATHOGENICITY_FEATURES,
 )
+from pipeline_xgboost import load_and_split
 
 CASE_STUDIES_DIR = os.path.join(PROJECT_DIR, "case_studies")
 
@@ -44,7 +45,7 @@ def _ensure_dir(path):
 # ───────────────────────────────────────────────────────────────
 
 def extract_cases(model, X_test, y_test, feature_names, class_names,
-                  meta_test=None):
+                  meta_test=None, optimal_threshold=0.5):
     """
     Extract 5 representative case studies from the hold-out test set.
 
@@ -54,11 +55,13 @@ def extract_cases(model, X_test, y_test, feature_names, class_names,
     Each value includes feature values, predictions, IARC IDs, and a
     narrative description.
     """
-    y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)
-    confidence = y_proba.max(axis=1)
     prob_positive = y_proba[:, 1]
-    edge_dist = np.abs(prob_positive - 0.5)
+    y_pred = (prob_positive >= optimal_threshold).astype(int)
+    # Confidence = probability of the *predicted* class (not max of both,
+    # which is wrong when the decision threshold differs from 0.5).
+    confidence = np.where(y_pred == 1, prob_positive, 1 - prob_positive)
+    edge_dist = np.abs(prob_positive - optimal_threshold)
     error_mask = y_pred != y_test
 
     cases = {}
@@ -171,12 +174,35 @@ def extract_cases(model, X_test, y_test, feature_names, class_names,
 #  SHAP COMPUTATION
 # ───────────────────────────────────────────────────────────────
 
-def _compute_shap(model, X_test, feature_names):
+def _compute_shap(model, X_test, feature_names, X_background=None):
     """
     Compute SHAP values for the positive class (class 1) using TreeExplainer.
     Returns (shap_values_2d_array, base_value_float) for class 1.
+
+    Parameters
+    ----------
+    X_background : np.ndarray or None
+        If provided, TreeExplainer will use ``model_output="probability"``
+        with interventional perturbation against this background sample.
+        This is required for XGBoost so that SHAP values are additive on
+        the probability scale (matching ``predict_proba``) rather than
+        on the raw log-odds / margin scale.
+        For sklearn Random Forest the default (None) already produces
+        probability-scale SHAP values.
     """
-    explainer = shap.TreeExplainer(model)
+    if X_background is not None:
+        # Subsample background to keep computation tractable
+        bg = X_background
+        if len(bg) > 200:
+            rng = np.random.RandomState(42)
+            idx = rng.choice(len(bg), 200, replace=False)
+            bg = bg[idx]
+        explainer = shap.TreeExplainer(
+            model, data=bg, model_output="probability",
+        )
+    else:
+        explainer = shap.TreeExplainer(model)
+
     sv_raw = explainer.shap_values(X_test)
 
     # For binary classification RF, shap_values() returns a list [class0, class1]
@@ -201,11 +227,12 @@ def _compute_shap(model, X_test, feature_names):
 #  GLOBAL SHAP PLOTS
 # ───────────────────────────────────────────────────────────────
 
-def generate_shap_global(model, X_test, feature_names, output_dir, stage_name):
+def generate_shap_global(model, X_test, feature_names, output_dir, stage_name,
+                         X_background=None):
     """Generate beeswarm + bar plots for the entire test set."""
     _ensure_dir(output_dir)
 
-    sv, base = _compute_shap(model, X_test, feature_names)
+    sv, base = _compute_shap(model, X_test, feature_names, X_background=X_background)
     X_df = pd.DataFrame(X_test, columns=feature_names)
 
     explanation = shap.Explanation(
@@ -328,8 +355,16 @@ def generate_shap_case(sv, base, X_test, feature_names, case_info, output_dir):
 # ───────────────────────────────────────────────────────────────
 
 def run_stage(stage_key, stage_name, class_names,
-              model, X_test, y_test, feature_names, meta_test=None):
-    """Full explainability pipeline for one classification stage."""
+              model, X_test, y_test, feature_names, meta_test=None,
+              optimal_threshold=0.5, X_background=None):
+    """Full explainability pipeline for one classification stage.
+
+    Parameters
+    ----------
+    X_background : np.ndarray or None
+        Background data for probability-scale SHAP (needed for XGBoost).
+        Pass X_train here; for sklearn RF this can be left as None.
+    """
     stage_dir = os.path.join(CASE_STUDIES_DIR, stage_key)
     _ensure_dir(stage_dir)
 
@@ -338,9 +373,10 @@ def run_stage(stage_key, stage_name, class_names,
     print(f"{'=' * 60}")
 
     # 1. Extract cases
-    print(f"\n  ── Extracting Case Studies ──")
+    print(f"\n  ── Extracting Case Studies (threshold={optimal_threshold:.4f}) ──")
     cases = extract_cases(
-        model, X_test, y_test, feature_names, class_names, meta_test=meta_test
+        model, X_test, y_test, feature_names, class_names, meta_test=meta_test,
+        optimal_threshold=optimal_threshold,
     )
     for key, info in cases.items():
         print(f"    {key:24s}  →  {info['predicted_label']:16s} "
@@ -351,6 +387,7 @@ def run_stage(stage_key, stage_name, class_names,
     print(f"\n  ── Global SHAP (entire test set, n={len(y_test)}) ──")
     sv, base, summary_path, bar_path = generate_shap_global(
         model, X_test, feature_names, stage_dir, stage_name,
+        X_background=X_background,
     )
 
     # 3. Dependence plots (top 3 features)
@@ -400,6 +437,52 @@ def run_stage(stage_key, stage_name, class_names,
     return cases
 
 
+def generate_training_shap(model, X_train, feature_names, output_dir, stage_name,
+                           X_background=None):
+    """Generate global SHAP plots (beeswarm + bar + dependence) on the
+    training set and save them into a ``training/`` subdirectory.
+
+    Parameters
+    ----------
+    X_background : np.ndarray or None
+        Background data for probability-scale SHAP (needed for XGBoost).
+        For XGBoost, pass X_train itself; for RF leave as None.
+    """
+    train_dir = os.path.join(output_dir, "training")
+    _ensure_dir(train_dir)
+
+    train_stage = f"{stage_name} (Training Set)"
+
+    print(f"\n  ── Global SHAP on Training Set (n={len(X_train)}) ──")
+    sv, base, summary_path, bar_path = generate_shap_global(
+        model, X_train, feature_names, train_dir, train_stage,
+        X_background=X_background,
+    )
+
+    print(f"\n  ── SHAP Dependence Plots (Training Set) ──")
+    dep_plots = generate_shap_dependence(
+        sv, X_train, feature_names, train_dir, train_stage,
+    )
+
+    # Save a small summary JSON so the Streamlit app can discover these
+    train_summary = {
+        "stage_name": train_stage,
+        "set": "training",
+        "n_samples": int(len(X_train)),
+        "global_shap_summary": summary_path,
+        "global_shap_bar": bar_path,
+        "dependence_plots": [
+            {"feature": d["feature"], "path": d["path"], "rank": d["rank"]}
+            for d in dep_plots
+        ],
+    }
+    with open(os.path.join(train_dir, "summary.json"), "w") as f:
+        json.dump(train_summary, f, indent=2, default=str)
+
+    print(f"\n  ✓ Training SHAP complete → {train_dir}")
+    return train_summary
+
+
 # ───────────────────────────────────────────────────────────────
 #  MAIN
 # ───────────────────────────────────────────────────────────────
@@ -414,12 +497,23 @@ def main():
 
     # Pathogenicity
     print("\n▶ Training Pathogenicity Model...")
-    path_model, path_feats, path_Xt, path_yt, _, path_meta = train_pathogenicity_model()
+    path_model, path_feats, path_Xt, path_yt, cv_results, path_meta = train_pathogenicity_model()
+    optimal_threshold = cv_results.get("optimal_threshold", 0.5)
+    print(f"  Using CV optimal threshold: {optimal_threshold:.4f}")
     run_stage(
         "stage1_pathogenicity", "Pathogenicity",
         ["Functional", "Non-functional"],
         path_model, path_Xt, path_yt, path_feats,
         meta_test=path_meta,
+        optimal_threshold=optimal_threshold,
+    )
+
+    # Training-set SHAP (beeswarm + bar + dependence)
+    print("\n▶ Generating Training-Set SHAP for Random Forest...")
+    X_train, _, _, _, _ = load_and_split(seed=42)
+    stage_dir = os.path.join(CASE_STUDIES_DIR, "stage1_pathogenicity")
+    generate_training_shap(
+        path_model, X_train, path_feats, stage_dir, "Pathogenicity",
     )
 
     print("\n" + "=" * 60)

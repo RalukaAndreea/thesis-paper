@@ -1,0 +1,24 @@
+{
+  "stage_name": "Pathogenicity (Training Set)",
+  "set": "training",
+  "n_samples": 1093,
+  "global_shap_summary": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/training/global_shap_summary.png",
+  "global_shap_bar": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/training/global_shap_bar.png",
+  "dependence_plots": [
+    {
+      "feature": "BAYESDEL",
+      "path": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/training/dependence_bayesdel.png",
+      "rank": 1
+    },
+    {
+      "feature": "REVEL",
+      "path": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/training/dependence_revel.png",
+      "rank": 2
+    },
+    {
+      "feature": "Is_Hotspot",
+      "path": "/Users/raluka/Desktop/Thesis paper/Tp53 variants analysis/case_studies/stage1_pathogenicity/training/dependence_is_hotspot.png",
+      "rank": 3
+    }
+  ]
+}

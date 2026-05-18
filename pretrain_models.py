@@ -20,14 +20,20 @@ def main():
     print("=" * 60)
 
     print("\n▶ Training Pathogenicity Model (Random Forest + GridSearchCV)...")
-    path_model, path_features, _, _, cv_results = train_pathogenicity_model()
+    path_model, path_features, _, _, cv_results, _ = train_pathogenicity_model()
     joblib.dump(path_model, os.path.join(models_dir, "pathogenicity_model.pkl"))
     print("  ✓ Saved pathogenicity_model.pkl")
+
+    # Save CV optimal threshold alongside the model
+    optimal_threshold = cv_results.get("optimal_threshold", 0.5)
+    joblib.dump(optimal_threshold, os.path.join(models_dir, "optimal_threshold.pkl"))
+    print(f"  ✓ Saved optimal_threshold.pkl (threshold = {optimal_threshold:.4f})")
 
     print(f"\n  Best params: {cv_results['best_params']}")
     print(f"  CV Accuracy: {cv_results['rf_accuracy'][0]:.4f} ± {cv_results['rf_accuracy'][1]:.4f}")
     print(f"  CV F1:       {cv_results['rf_f1'][0]:.4f} ± {cv_results['rf_f1'][1]:.4f}")
     print(f"  CV AUC:      {cv_results['rf_auc'][0]:.4f} ± {cv_results['rf_auc'][1]:.4f}")
+    print(f"  CV Threshold: {optimal_threshold:.4f}")
 
     print("\n" + "=" * 60)
     print("  Model saved to:", models_dir)
