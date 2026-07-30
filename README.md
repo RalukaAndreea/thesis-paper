@@ -12,9 +12,12 @@
   - [Classification Architecture](#classification-architecture)
   - [Pathogenicity Classification](#pathogenicity-classification)
   - [Feature Engineering](#feature-engineering)
+  - [Extended Feature Set (12 Features)](#extended-feature-set-12-features)
   - [Rule-Based Overrides](#rule-based-overrides)
   - [Model Training & Optimization](#model-training--optimization)
   - [Explainability (SHAP)](#explainability-shap)
+  - [Statistical Significance Testing](#statistical-significance-testing)
+  - [Model Comparison & Analysis](#model-comparison--analysis)
 - [Frontend — Streamlit Web Application](#frontend--streamlit-web-application)
 - [Project Structure](#project-structure)
 - [Installation & Setup](#installation--setup)
@@ -66,29 +69,30 @@ The IARC data is **not synthetically generated** — it represents real, clinica
 
 ### Classification Architecture
 
-The pipeline uses two parallel machine learning models to solve the pathogenicity classification problem:
+The pipeline uses three parallel machine learning models to solve the pathogenicity classification problem:
 
 ```text
-                    ┌─────────────────────────────────┐
-                    │     Input: Patient VCF File      │
-                    └─────────────┬───────────────────┘
-                                  │
-                          ┌───────▼────────┐
-                          │ VCF Parsing &   │
-                          │ Feature Eng.    │
-                          └───────┬────────┘
-                                  │
-                 ┌────────────────┴────────────────┐
-                 │                                 │
-        ┌────────▼─────────┐              ┌────────▼─────────┐
-        │  Random Forest   │              │ XGBoost (Optuna) │
-        │  (GridSearchCV)  │              │                  │
-        └────────┬─────────┘              └────────┬─────────┘
-                 │                                 │
-         ┌───────┴───────┐                 ┌───────┴───────┐
-         ▼               ▼                 ▼               ▼
-   Functional     Non-functional     Functional     Non-functional
-    (benign)       (pathogenic)       (benign)       (pathogenic)
+                        ┌─────────────────────────────────┐
+                        │     Input: Patient VCF File      │
+                        └─────────────┬───────────────────┘
+                                      │
+                              ┌───────▼────────┐
+                              │ VCF Parsing &   │
+                              │ Feature Eng.    │
+                              └───────┬────────┘
+                                      │
+           ┌──────────────────────────┼──────────────────────────┐
+           │                         │                          │
+  ┌────────▼─────────┐     ┌─────────▼──────────┐     ┌─────────▼──────────┐
+  │  Baseline RF     │     │  Extended RF       │     │  XGBoost (Optuna)  │
+  │  (8 features)    │     │  (12 features)     │     │  (8 features)      │
+  │  GridSearchCV    │     │  GridSearchCV      │     │  Optuna 50 trials  │
+  └────────┬─────────┘     └─────────┬──────────┘     └─────────┬──────────┘
+           │                         │                          │
+    ┌──────┴──────┐           ┌──────┴──────┐            ┌──────┴──────┐
+    ▼             ▼           ▼             ▼            ▼             ▼
+Functional  Non-functional Functional  Non-functional Functional  Non-functional
+ (benign)    (pathogenic)   (benign)    (pathogenic)   (benign)    (pathogenic)
 ```
 
 ---
@@ -115,10 +119,11 @@ The pipeline uses two parallel machine learning models to solve the pathogenicit
 | `Is_CpG` | Whether the mutation occurs at a CpG dinucleotide site | IARC database |
 
 **Models**: 
-1. **Random Forest Classifier**: tuned with `GridSearchCV` over hyperparameters (`n_estimators`, `max_depth`, `min_samples_split`, `min_samples_leaf`).
-2. **XGBoost Classifier**: tuned via **Optuna** (50 trials) optimizing for weighted F1-score and using a robust `scale_pos_weight` to handle class imbalances.
+1. **Baseline Random Forest Classifier** (8 features): tuned with `GridSearchCV` over hyperparameters (`n_estimators`, `max_depth`, `min_samples_split`, `min_samples_leaf`).
+2. **Extended Random Forest Classifier** (12 features): same architecture as the baseline RF but trained on a 12-feature set selected by RFECV (see [Extended Feature Set](#extended-feature-set-12-features)).
+3. **XGBoost Classifier** (8 features): tuned via **Optuna** (50 trials) optimizing for weighted F1-score and using a robust `scale_pos_weight` to handle class imbalances.
 
-**Evaluation**: 5-fold Stratified Cross-Validation reporting Accuracy, Weighted F1, AUC-ROC, Sensitivity, and Specificity. Both models select their optimal decision threshold by maximizing Youden's J statistic ($TPR - FPR$) on the out-of-fold validation probabilities, ensuring unbiased held-out performance.
+**Evaluation**: 5-fold Stratified Cross-Validation reporting Accuracy, Weighted F1, AUC-ROC, Sensitivity, and Specificity. All models select their optimal decision threshold by maximizing Youden's J statistic ($TPR - FPR$) on the out-of-fold validation probabilities, ensuring unbiased held-out performance.
 
 ---
 
@@ -133,6 +138,24 @@ The `engineer_features()` function in `pipeline.py` transforms raw VCF data into
 3. **Missense-specific handling**: REVEL, BayesDel, AGVGD, SIFT, and PolyPhen-2 are only meaningful for missense variants. Non-missense variants receive neutral defaults (0) to prevent the model from learning spurious patterns.
 
 4. **Database membership flags**: `In_ClinVar` and `In_COSMIC` are derived from the `DB_SOURCE` annotation in the VCF.
+
+---
+
+### Extended Feature Set (12 Features)
+
+The extended pipeline (`pipeline_extended.py`) augments the baseline 8-feature set with 5 additional features selected via **Recursive Feature Elimination with Cross-Validation (RFECV)** in `automate_feature_selection_extended.py`:
+
+| Feature | Description | Source |
+|---|---|---|
+| `SpliceAI_DS_AG` | SpliceAI delta score — acceptor gain | IARC database |
+| `SpliceAI_DS_AL` | SpliceAI delta score — acceptor loss | IARC database |
+| `SpliceAI_DS_DG` | SpliceAI delta score — donor gain | IARC database |
+| `SpliceAI_DS_DL` | SpliceAI delta score — donor loss | IARC database |
+| `Exon_Number` | Exon number where the variant is located | IARC database |
+
+> **Note**: `Is_CpG` was dropped by RFECV and is not included in the extended feature set.
+
+This extended model serves as an ablation study to assess whether additional splice-site and exon-level features improve pathogenicity classification.
 
 ---
 
@@ -177,7 +200,33 @@ The pipeline integrates **SHAP (SHapley Additive exPlanations)** via `TreeExplai
 
 Two scopes of explainability are provided:
 1. **Global/Training Explainability**: Visualizes the overall importance and directionality of features across the entire training dataset (n=1093) using beeswarm, bar, and dependence plots.
-2. **Local/Case Studies**: Extracts 5 representative variants from the held-out test set for each model (True Positive, True Negative, Edge Case Correct, Edge Case Incorrect, Misclassification) and generates individual force plots to explain *why* the model made a specific prediction.
+2. **Local/Case Studies**: Extracts 5 representative variants from the held-out test set for each model (True Positive, True Negative, Edge Case Correct, Edge Case Incorrect, Misclassification) and generates individual waterfall plots to explain *why* the model made a specific prediction.
+
+Explainability modules:
+- `explainability.py` — SHAP analysis for the baseline Random Forest
+- `explainability_extended.py` — SHAP analysis for the extended 12-feature Random Forest
+- `explainability_xgboost.py` — SHAP analysis for XGBoost
+
+Extracted SHAP values and statistics are saved to the `shap_extracted_values/` directory for further analysis and thesis reporting.
+
+---
+
+### Statistical Significance Testing
+
+`statistical_significance.py` validates that the models perform significantly better than chance using:
+- **5-fold Cross-Validation** accuracy against the majority-class baseline
+- **Permutation Test** (100 permutations) to compute the p-value of the observed accuracy
+
+---
+
+### Model Comparison & Analysis
+
+Additional analysis scripts:
+- `compare_rf_xgb_disagreements.py` — Identifies variants where Random Forest and XGBoost disagree, analyzes feature patterns, and exports disagreement summaries
+- `generate_combined_roc.py` — Generates a combined ROC curve overlaying Baseline RF, Extended RF, and XGBoost on the same plot
+- `extract_shap_values.py` / `extract_shap_all_models.py` — Batch-extracts SHAP values across all models for comparative analysis
+- `extract_shap_dependence_zones.py` — Extracts SHAP dependence plot data with risk zone annotations
+- `extract_importances.py` — Exports feature importance rankings across models
 
 ---
 
@@ -201,19 +250,40 @@ The UI uses a modern dark theme with gradient accents, custom CSS, and the Inter
 ```
 Tp53 variants analysis/
 │
-├── app.py                          # Streamlit web application (frontend)
-├── pipeline.py                     # Core RF pipeline (parsing, feature engineering, training)
-├── pipeline_xgboost.py             # XGBoost optimization and training pipeline
-├── pipeline_revel.py               # RF pipeline for REVEL ablation testing
-├── pretrain_models.py              # Pre-train and serialize RF models for fast loading
-├── pretrain_models_xgboost.py      # Pre-train and serialize XGB models for fast loading
-├── run_pipeline.py                 # RF pipeline execution script
-├── run_pipeline_xgboost.py         # XGBoost pipeline execution script
-├── run_pipeline_revel.py           # Ablation testing execution script
-├── explainability.py               # SHAP explainability generation for RF
-├── explainability_xgboost.py       # SHAP explainability generation for XGBoost
-├── database.py                     # SQLite user/upload management with bcrypt authentication
-├── grantham.py                     # Full 20×20 Grantham distance matrix and classification
+├── app.py                              # Streamlit web application (frontend)
+├── database.py                         # SQLite user/upload management with bcrypt authentication
+├── grantham.py                         # Full 20×20 Grantham distance matrix and classification
+│
+├── ── Pipelines ──────────────────────────────────────────────────
+├── pipeline.py                         # Core baseline RF pipeline (parsing, feature eng., training)
+├── pipeline_xgboost.py                 # XGBoost optimization and training pipeline
+├── pipeline_extended.py                # Extended 12-feature RF pipeline (RFECV-selected features)
+├── pipeline_revel.py                   # RF pipeline for REVEL ablation testing
+│
+├── ── Pipeline Runners ──────────────────────────────────────────
+├── run_pipeline.py                     # Baseline RF execution script
+├── run_pipeline_xgboost.py             # XGBoost execution script
+├── run_pipeline_extended.py            # Extended RF execution script
+├── run_pipeline_revel.py               # REVEL ablation execution script
+│
+├── ── Pre-Training ──────────────────────────────────────────────
+├── pretrain_models.py                  # Pre-train and serialize RF models (.pkl)
+├── pretrain_models_xgboost.py          # Pre-train and serialize XGBoost models (.pkl)
+│
+├── ── Explainability ────────────────────────────────────────────
+├── explainability.py                   # SHAP analysis for baseline RF
+├── explainability_extended.py          # SHAP analysis for extended RF
+├── explainability_xgboost.py           # SHAP analysis for XGBoost
+│
+├── ── Analysis & Comparison Scripts ─────────────────────────────
+├── statistical_significance.py         # Permutation tests & CV significance testing
+├── compare_rf_xgb_disagreements.py     # RF vs XGBoost disagreement analysis
+├── generate_combined_roc.py            # Combined ROC curve (all 3 models)
+├── automate_feature_selection_extended.py  # RFECV automated feature selection
+├── extract_importances.py              # Export feature importance rankings
+├── extract_shap_values.py              # Extract SHAP values for single model
+├── extract_shap_all_models.py          # Batch SHAP extraction across all models
+├── extract_shap_dependence_zones.py    # SHAP dependence data with risk zones
 │
 ├── IARC_TP53_DB/
 │   ├── GermlineDownload_r21.csv        # IARC TP53 Germline Database (R21)
@@ -230,29 +300,50 @@ Tp53 variants analysis/
 │   │   ├── generate_vcf.py             # Generate synthetic VCFs from real IARC data
 │   │   └── generate_novel_vcf.py       # Generate VCFs with novel unseen mutations
 │   ├── Generated vcf files/            # Generated mock patient VCFs for testing
-│   └── Case_Studies_VCF/               # Edge case VCFs for testing
+│   └── Case_Studies_VCF/               # Case study VCFs (RF & XGBoost outputs)
 │
 ├── PLOTS/                              # Plotting scripts and generated visualizations
 │   ├── visualizations.py               # Thesis-quality plot generation for RF
 │   ├── visualizations_xgboost.py       # Thesis-quality plot generation for XGBoost
 │   ├── visualizations_revel.py         # Thesis-quality plot generation for ablation
+│   ├── combined_roc_curve.png          # Combined ROC curve (all models)
 │   └── *.png                           # Generated visualizations
 │
 ├── models/                             # Pre-trained model artifacts (.pkl)
-│   ├── pathogenicity_model.pkl
-│   ├── optimal_threshold.pkl
-│   ├── xgb_pathogenicity_model.pkl
-│   └── xgb_optimal_threshold.pkl
+│   ├── pathogenicity_model.pkl         # Baseline RF model
+│   ├── optimal_threshold.pkl           # RF Youden's J optimal threshold
+│   ├── xgb_pathogenicity_model.pkl     # XGBoost model
+│   └── xgb_optimal_threshold.pkl       # XGBoost Youden's J optimal threshold
+│
+├── case_studies/                        # SHAP case studies for explainability
+│   ├── stage1_pathogenicity/           # Baseline RF case studies & training SHAP
+│   ├── extended_pathogenicity/         # Extended RF case studies & training SHAP
+│   └── xgb_pathogenicity/             # XGBoost case studies & training SHAP
+│
+├── shap_extracted_values/              # Extracted SHAP values for thesis reporting
+│   ├── shap_rf_baseline_*.json         # RF baseline SHAP summaries (train/test)
+│   ├── shap_rf_extended7_*.json        # Extended RF SHAP summaries
+│   ├── shap_xgb_baseline_*.json        # XGBoost SHAP summaries
+│   ├── shap_stats_rf_baseline_*.json   # SHAP statistical summaries
+│   ├── shap_dependence_zones_*.json    # SHAP dependence risk zone data
+│   ├── rf_vs_xgb_disagreements.csv     # RF vs XGBoost disagreement cases
+│   └── rf_vs_xgb_disagreement_summary.json
+│
+├── Feature_importance/                 # Feature importance tables & plots
+│   ├── feature_importances_pathogenicity.csv
+│   ├── feature_importances_pathogenicity_xgboost.csv
+│   ├── extended_permutation_importance.png
+│   └── extended_rfecv.png
 │
 ├── uploads/                            # User upload storage (per-user, timestamped)
-├── case_studies/                       # Generated cases for explainability
-├── Feature_importance/                 # Feature importance tables
 ├── tp53_app.db                         # SQLite database (users + upload records)
 │
 ├── pipeline_results.csv                # Example pipeline output
-├── cv_model_comparison.json            # Cross-validation metrics (RF)
+├── cv_model_comparison.json            # Cross-validation metrics (baseline RF)
+├── cv_model_comparison_extended.json   # Cross-validation metrics (extended RF)
 ├── cv_model_comparison_xgboost.json    # Cross-validation metrics (XGBoost)
-└── requirements.txt                    # Python dependencies
+├── requirements.txt                    # Python dependencies
+└── .gitignore                          # Git ignore rules
 ```
 
 ---
@@ -268,8 +359,8 @@ Tp53 variants analysis/
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/<your-username>/tp53-variant-classification.git
-cd tp53-variant-classification
+git clone https://github.com/RalukaAndreea/thesis-paper.git
+cd thesis-paper
 
 # 2. Create a virtual environment
 python -m venv venv
@@ -298,6 +389,9 @@ matplotlib
 joblib
 bcrypt
 scipy
+shap
+xgboost
+optuna
 ```
 
 ---
@@ -316,8 +410,17 @@ scipy
 ### Command-Line Pipeline
 
 ```bash
-# Run the full pipeline (train models + classify + generate visualizations)
+# Run the full baseline RF pipeline (train + classify + visualize)
 python run_pipeline.py
+
+# Run the XGBoost pipeline
+python run_pipeline_xgboost.py
+
+# Run the extended 12-feature RF pipeline
+python run_pipeline_extended.py
+
+# Run the REVEL ablation test
+python run_pipeline_revel.py
 
 # Pre-train models only (for the web app)
 python pretrain_models.py
@@ -329,6 +432,14 @@ python VCF/gen_vcf_files/generate_vcf.py
 # Generate novel mutation VCFs (for generalization testing)
 python VCF/gen_vcf_files/generate_novel_vcf.py
 
+# Generate combined ROC curve (all 3 models)
+python generate_combined_roc.py
+
+# Run statistical significance tests
+python statistical_significance.py
+
+# Compare RF vs XGBoost disagreements
+python compare_rf_xgb_disagreements.py
 ```
 
 ---
@@ -337,12 +448,16 @@ python VCF/gen_vcf_files/generate_novel_vcf.py
 
 The pipeline generates publication-ready visualizations:
 
-- **ROC Curves** — with AUC scores and optimal threshold markers
+- **ROC Curves** — with AUC scores and optimal threshold markers (per-model and combined)
 - **Confusion Matrices** — normalized heatmaps with count and percentage annotations
 - **Feature Importance Charts** — horizontal bar charts ranked by Gini/Gain importance
+- **Permutation Importance** — model-agnostic importance via feature shuffling
+- **RFECV Curves** — feature selection validation plots
 - **SHAP Summary Plots** — beeswarm and bar charts for global explainability
-- **SHAP Force Plots** — individual variant explanation plots for case studies
+- **SHAP Dependence Plots** — feature interaction plots with risk zone annotations
+- **SHAP Waterfall Plots** — individual variant explanation plots for case studies
 - **Feature Correlation Heatmaps** — visualizing feature independence
+- **Combined ROC Curve** — overlay comparison of all three models
 
 All plots use a consistent dark-themed visual style designed for thesis inclusion.
 
