@@ -1,0 +1,22 @@
+{
+  "label": "Clear-Cut Non-functional",
+  "description": "The model correctly identified this variant as Non-functional with very high confidence. All major features align with the positive class.",
+  "features": {
+    "Grantham_Score": 180.0,
+    "REVEL": 0.964,
+    "BAYESDEL": 0.5991,
+    "Is_Hotspot": 1.0,
+    "SpliceAI_DS_AG": 0.0,
+    "SpliceAI_DS_DG": 0.0,
+    "Exon_Number": 5.0
+  },
+  "true_label": "Non-functional",
+  "predicted_label": "Non-functional",
+  "confidence": 0.9962,
+  "prob_class_0": 0.0038,
+  "prob_class_1": 0.9962,
+  "mut_id": "1458",
+  "individual_id": "1220.0",
+  "prot_description": "p.C135R",
+  "shap_waterfall": "/Users/raluka/Desktop/Thesis paper final/Tp53 variants analysis/case_studies/extended_pathogenicity/case_true_positive/shap_waterfall.png"
+}

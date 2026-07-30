@@ -1,0 +1,129 @@
+{
+  "n_total": 274,
+  "n_agree": 261,
+  "n_disagree": 13,
+  "pct_agreement": 95.26,
+  "rf_threshold": 0.5651,
+  "xgb_threshold": 0.5471,
+  "rf_correct_xgb_wrong": 7,
+  "xgb_correct_rf_wrong": 6,
+  "disagreement_variants": [
+    {
+      "variant": "p.C124G",
+      "true_label": "Non-functional",
+      "rf_proba": 0.539,
+      "rf_class": "Functional",
+      "xgb_proba": 0.6582000255584717,
+      "xgb_class": "Non-functional",
+      "winner": "XGB_correct_RF_wrong"
+    },
+    {
+      "variant": "p.K139E",
+      "true_label": "Functional",
+      "rf_proba": 0.5146,
+      "rf_class": "Functional",
+      "xgb_proba": 0.6380000114440918,
+      "xgb_class": "Non-functional",
+      "winner": "RF_correct_XGB_wrong"
+    },
+    {
+      "variant": "p.Q16L",
+      "true_label": "Functional",
+      "rf_proba": 0.5405,
+      "rf_class": "Functional",
+      "xgb_proba": 0.5659999847412109,
+      "xgb_class": "Non-functional",
+      "winner": "RF_correct_XGB_wrong"
+    },
+    {
+      "variant": "p.S116F",
+      "true_label": "Functional",
+      "rf_proba": 0.5471,
+      "rf_class": "Functional",
+      "xgb_proba": 0.579800009727478,
+      "xgb_class": "Non-functional",
+      "winner": "RF_correct_XGB_wrong"
+    },
+    {
+      "variant": "p.N235D",
+      "true_label": "Non-functional",
+      "rf_proba": 0.5888,
+      "rf_class": "Non-functional",
+      "xgb_proba": 0.49390000104904175,
+      "xgb_class": "Functional",
+      "winner": "RF_correct_XGB_wrong"
+    },
+    {
+      "variant": "p.S269I",
+      "true_label": "Functional",
+      "rf_proba": 0.6445,
+      "rf_class": "Non-functional",
+      "xgb_proba": 0.513700008392334,
+      "xgb_class": "Functional",
+      "winner": "XGB_correct_RF_wrong"
+    },
+    {
+      "variant": "p.T140S",
+      "true_label": "Non-functional",
+      "rf_proba": 0.5601,
+      "rf_class": "Functional",
+      "xgb_proba": 0.5687000155448914,
+      "xgb_class": "Non-functional",
+      "winner": "XGB_correct_RF_wrong"
+    },
+    {
+      "variant": "p.D324Y",
+      "true_label": "Functional",
+      "rf_proba": 0.4802,
+      "rf_class": "Functional",
+      "xgb_proba": 0.579800009727478,
+      "xgb_class": "Non-functional",
+      "winner": "RF_correct_XGB_wrong"
+    },
+    {
+      "variant": "p.M243I",
+      "true_label": "Functional",
+      "rf_proba": 0.6534,
+      "rf_class": "Non-functional",
+      "xgb_proba": 0.4359000027179718,
+      "xgb_class": "Functional",
+      "winner": "XGB_correct_RF_wrong"
+    },
+    {
+      "variant": "p.R110C",
+      "true_label": "Non-functional",
+      "rf_proba": 0.5988,
+      "rf_class": "Non-functional",
+      "xgb_proba": 0.4101000130176544,
+      "xgb_class": "Functional",
+      "winner": "RF_correct_XGB_wrong"
+    },
+    {
+      "variant": "p.R283H",
+      "true_label": "Non-functional",
+      "rf_proba": 0.5567,
+      "rf_class": "Functional",
+      "xgb_proba": 0.5519000291824341,
+      "xgb_class": "Non-functional",
+      "winner": "XGB_correct_RF_wrong"
+    },
+    {
+      "variant": "p.T155I",
+      "true_label": "Non-functional",
+      "rf_proba": 0.5712,
+      "rf_class": "Non-functional",
+      "xgb_proba": 0.4564000070095062,
+      "xgb_class": "Functional",
+      "winner": "RF_correct_XGB_wrong"
+    },
+    {
+      "variant": "p.K139R",
+      "true_label": "Functional",
+      "rf_proba": 0.5868,
+      "rf_class": "Non-functional",
+      "xgb_proba": 0.46540001034736633,
+      "xgb_class": "Functional",
+      "winner": "XGB_correct_RF_wrong"
+    }
+  ]
+}

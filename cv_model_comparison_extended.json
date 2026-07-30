@@ -1,0 +1,39 @@
+{
+  "rf_accuracy": {
+    "mean": 0.8033,
+    "std": 0.0161
+  },
+  "rf_f1": {
+    "mean": 0.803,
+    "std": 0.0153
+  },
+  "rf_auc": {
+    "mean": 0.8579,
+    "std": 0.0156
+  },
+  "rf_sensitivity": {
+    "mean": 0.8129,
+    "std": 0.065
+  },
+  "rf_specificity": {
+    "mean": 0.7899,
+    "std": 0.0774
+  },
+  "test_sensitivity": 0.81875,
+  "test_specificity": 0.8245614035087719,
+  "best_model": "Random Forest",
+  "best_params": {
+    "max_depth": 8,
+    "min_samples_leaf": 4,
+    "min_samples_split": 2,
+    "n_estimators": 200
+  },
+  "optimal_threshold": 0.4885519928737024,
+  "per_fold_thresholds": [
+    0.37921536670742273,
+    0.6040206715567515,
+    0.5153937360040128,
+    0.5477011718864823,
+    0.3964290182138422
+  ]
+}

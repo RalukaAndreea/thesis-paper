@@ -1,0 +1,22 @@
+{
+  "label": "Clear-Cut Functional",
+  "description": "The model correctly identified this variant as Functional with very high confidence. Feature values are consistent with the negative class.",
+  "features": {
+    "Grantham_Score": 29.0,
+    "REVEL": 0.321,
+    "BAYESDEL": -0.1396,
+    "Is_Hotspot": 1.0,
+    "SpliceAI_DS_AG": 0.01,
+    "SpliceAI_DS_DG": 0.01,
+    "Exon_Number": 8.0
+  },
+  "true_label": "Functional",
+  "predicted_label": "Functional",
+  "confidence": 0.9574,
+  "prob_class_0": 0.9574,
+  "prob_class_1": 0.0426,
+  "mut_id": "4065",
+  "individual_id": "6148.0",
+  "prot_description": "p.E294Q",
+  "shap_waterfall": "/Users/raluka/Desktop/Thesis paper final/Tp53 variants analysis/case_studies/extended_pathogenicity/case_true_negative/shap_waterfall.png"
+}

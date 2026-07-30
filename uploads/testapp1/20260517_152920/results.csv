@@ -1,0 +1,6 @@
+Chromosome,Position,Ref,Alt,EFFECT,AA_REF,AA_ALT,Grantham_Score,Grantham_Category,REVEL,BAYESDEL,Pathogenicity_Prediction,Pathogenicity_Confidence
+chr17,7675097,A,T,missense,V,D,152.0,radical,0.952,0.5884,Non-functional,0.993
+chr17,7675149,T,C,missense,T,A,58.0,moderately_conservative,0.337,-0.0956,Functional,0.968
+chr17,7675148,G,A,missense,T,I,89.0,moderately_conservative,0.597,0.1755,Non-functional,0.571
+chr17,7674244,C,T,missense,S,N,46.0,conservative,0.75,0.1025,Functional,0.436
+chr17,7674938,T,A,missense,E,V,121.0,moderately_radical,0.926,0.5814,Non-functional,0.981

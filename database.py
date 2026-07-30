@@ -11,6 +11,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tp53_app.db"
 
 def _get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON;")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -34,7 +35,7 @@ def init_db():
             upload_date TEXT    NOT NULL,
             results_dir TEXT    NOT NULL,
             num_variants INTEGER DEFAULT 0,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
     conn.commit()

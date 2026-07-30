@@ -1,0 +1,6 @@
+{
+  "filename": "mock_patient.vcf",
+  "timestamp": "2026-05-15T00:25:37.403401",
+  "n_variants": 50,
+  "model": "XGBoost (Optuna)"
+}

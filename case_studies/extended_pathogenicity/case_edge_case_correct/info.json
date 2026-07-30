@@ -1,0 +1,22 @@
+{
+  "label": "Edge Case (Correctly Classified)",
+  "description": "This variant sits on the decision boundary \u2014 the model's probability is near 50%, making it the least confident prediction. Despite the uncertainty, the model still classified it correctly.",
+  "features": {
+    "Grantham_Score": 159.0,
+    "REVEL": 0.391,
+    "BAYESDEL": -0.0219,
+    "Is_Hotspot": 0.0,
+    "SpliceAI_DS_AG": 0.0,
+    "SpliceAI_DS_DG": 0.0,
+    "Exon_Number": 4.0
+  },
+  "true_label": "Functional",
+  "predicted_label": "Functional",
+  "confidence": 0.5213,
+  "prob_class_0": 0.5213,
+  "prob_class_1": 0.4787,
+  "mut_id": "564",
+  "individual_id": "18392.0",
+  "prot_description": "p.G59C",
+  "shap_waterfall": "/Users/raluka/Desktop/Thesis paper final/Tp53 variants analysis/case_studies/extended_pathogenicity/case_edge_case_correct/shap_waterfall.png"
+}

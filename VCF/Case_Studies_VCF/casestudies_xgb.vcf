@@ -1,0 +1,27 @@
+##fileformat=VCFv4.2
+##fileDate=2026-05-16
+##source=TP53_CaseStudy_XGB
+##reference=GRCh38
+##contig=<ID=chr17,length=83257441>
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Total read depth">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele frequency">
+##INFO=<ID=AA_REF,Number=1,Type=String,Description="Reference amino acid (one-letter)">
+##INFO=<ID=AA_ALT,Number=1,Type=String,Description="Alternate amino acid (one-letter)">
+##INFO=<ID=EFFECT,Number=1,Type=String,Description="Variant effect">
+##INFO=<ID=REVEL,Number=1,Type=Float,Description="REVEL pathogenicity score">
+##INFO=<ID=BAYESDEL,Number=1,Type=Float,Description="BayesDel deleteriousness score">
+##INFO=<ID=HOTSPOT,Number=1,Type=String,Description="TP53 mutation hotspot">
+##INFO=<ID=CPG,Number=1,Type=String,Description="CpG site">
+##INFO=<ID=TRANSCLASS,Number=1,Type=String,Description="Transactivation functional class">
+##INFO=<ID=TCGA_COUNT,Number=1,Type=Integer,Description="TCGA/ICGC/GENIE occurrence count">
+##INFO=<ID=AGVGD,Number=1,Type=String,Description="Align-GVGD classification (C0-C65)">
+##INFO=<ID=SIFT,Number=1,Type=String,Description="SIFT prediction">
+##INFO=<ID=PP2,Number=1,Type=String,Description="PolyPhen-2 prediction (B/P/D)">
+##INFO=<ID=DB_SOURCE,Number=1,Type=String,Description="Database origin annotation">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	CASESTUDY_XGB
+chr17	7675235	MUT_1325	T	C	60	PASS	DP=140;AF=0.320;AA_REF=Y;AA_ALT=C;EFFECT=missense;REVEL=0.981;BAYESDEL=0.5956;HOTSPOT=yes;CPG=no;TRANSCLASS=non-functional;TCGA_COUNT=38;AGVGD=C65;SIFT=Damaging;PP2=D;DB_SOURCE=ClinVar|COSMIC	GT	0/1
+chr17	7676053	MUT_1077	T	C	58	PASS	DP=105;AF=0.260;AA_REF=S;AA_ALT=G;EFFECT=missense;REVEL=0.360;BAYESDEL=-0.1171;HOTSPOT=no;CPG=no;TRANSCLASS=functional;TCGA_COUNT=0;AGVGD=C0;SIFT=Tolerated;PP2=B;DB_SOURCE=COSMIC	GT	0/1
+chr17	7673772	MUT_3903	C	T	55	PASS	DP=115;AF=0.290;AA_REF=R;AA_ALT=H;EFFECT=missense;REVEL=0.836;BAYESDEL=0.3010;HOTSPOT=no;CPG=yes;TRANSCLASS=non-functional;TCGA_COUNT=3;AGVGD=C0;SIFT=Damaging;PP2=D;DB_SOURCE=ClinVar|COSMIC	GT	0/1
+chr17	7670712	MUT_4544	G	C	52	PASS	DP=100;AF=0.240;AA_REF=R;AA_ALT=G;EFFECT=missense;REVEL=0.855;BAYESDEL=0.2549;HOTSPOT=no;CPG=yes;TRANSCLASS=partially_functional;TCGA_COUNT=0;AGVGD=C25;SIFT=Damaging;PP2=P;DB_SOURCE=ClinVar	GT	0/1
+chr17	7674938	MUT_2487	T	A	58	PASS	DP=130;AF=0.300;AA_REF=E;AA_ALT=V;EFFECT=missense;REVEL=0.926;BAYESDEL=0.5814;HOTSPOT=yes;CPG=no;TRANSCLASS=functional;TCGA_COUNT=0;AGVGD=C65;SIFT=Damaging;PP2=D;DB_SOURCE=COSMIC	GT	0/1

@@ -89,7 +89,8 @@ def plot_class_distribution(results_df: pd.DataFrame, output_dir: str) -> str:
 def plot_roc_curve(model, X_test: np.ndarray,
                    y_test: np.ndarray, stage_name: str,
                    class_names: list[str], colors: list[str],
-                   output_dir: str) -> str:
+                   output_dir: str,
+                   optimal_threshold: float = None) -> str:
 
     stage_tag = stage_name.lower().replace(" ", "").replace("—", "")
     filename = "roc_curve.png"
@@ -100,7 +101,7 @@ def plot_roc_curve(model, X_test: np.ndarray,
     fig, ax = plt.subplots(figsize=(8, 7))
 
     y_proba = model.predict_proba(X_test)[:, 1]
-    fpr, tpr, _ = roc_curve(y_test, y_proba)
+    fpr, tpr, thresholds = roc_curve(y_test, y_proba)
     roc_auc = auc(fpr, tpr)
 
     ax.fill_between(fpr, tpr, alpha=0.15, color=colors[1])
@@ -110,11 +111,20 @@ def plot_roc_curve(model, X_test: np.ndarray,
     ax.plot([0, 1], [0, 1], color="#666666", linewidth=1.2,
             linestyle="--", label="Random Classifier (AUC = 0.500)")
 
-    # Optimal threshold point
-    optimal_idx = np.argmax(tpr - fpr)
-    ax.scatter(fpr[optimal_idx], tpr[optimal_idx],
-               color=COLORS["highlight"], s=120, zorder=5, edgecolors="#1a1a2e",
-               linewidth=2, label=f"Optimal Threshold")
+    # Optimal threshold point (from CV, not computed on test set)
+    if optimal_threshold is not None:
+        # Find the point on the ROC curve closest to the CV threshold
+        thresh_idx = np.argmin(np.abs(thresholds - optimal_threshold))
+        ax.scatter(fpr[thresh_idx], tpr[thresh_idx],
+                   color=COLORS["highlight"], s=120, zorder=5, edgecolors="#1a1a2e",
+                   linewidth=2,
+                   label=f"CV Optimal Threshold = {optimal_threshold:.3f}")
+    else:
+        # Fallback: compute from test ROC (legacy behavior)
+        optimal_idx = np.argmax(tpr - fpr)
+        ax.scatter(fpr[optimal_idx], tpr[optimal_idx],
+                   color=COLORS["highlight"], s=120, zorder=5, edgecolors="#1a1a2e",
+                   linewidth=2, label="Optimal Threshold")
 
     ax.set_xlabel("False Positive Rate", fontsize=13)
     ax.set_ylabel("True Positive Rate", fontsize=13)
@@ -134,7 +144,8 @@ def plot_roc_curve(model, X_test: np.ndarray,
 def plot_confusion_matrix(model, X_test: np.ndarray,
                           y_test: np.ndarray, stage_name: str,
                           class_names: list[str], color: str,
-                          output_dir: str) -> str:
+                          output_dir: str,
+                          optimal_threshold: float = None) -> str:
     stage_tag = stage_name.lower().replace(" ", "").replace("—", "")
     filename = "confusion_matrix.png"
     if "pathogenicity" in stage_tag or "stage1" in stage_tag:
@@ -144,7 +155,12 @@ def plot_confusion_matrix(model, X_test: np.ndarray,
 
     fig, ax = plt.subplots(figsize=(7, 6))
 
-    y_pred = model.predict(X_test)
+    # Use CV-derived threshold if provided, otherwise default .predict()
+    if optimal_threshold is not None:
+        y_proba = model.predict_proba(X_test)[:, 1]
+        y_pred = (y_proba >= optimal_threshold).astype(int)
+    else:
+        y_pred = model.predict(X_test)
     cm = confusion_matrix(y_test, y_pred)
 
     cm_norm = cm.astype(float) / cm.sum(axis=1, keepdims=True)
@@ -171,8 +187,12 @@ def plot_confusion_matrix(model, X_test: np.ndarray,
     ax.set_yticklabels(class_names, fontsize=11)
     ax.set_xlabel("Predicted Label", fontsize=13, labelpad=10)
     ax.set_ylabel("True Label", fontsize=13, labelpad=10)
-    ax.set_title(f"Confusion Matrix — {stage_name}",
-                 fontsize=15, fontweight="bold", pad=12)
+
+    # Include threshold in title if provided
+    title = f"Confusion Matrix — {stage_name}"
+    if optimal_threshold is not None:
+        title += f"\n(threshold = {optimal_threshold:.3f})"
+    ax.set_title(title, fontsize=15, fontweight="bold", pad=12)
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.06)
     cbar.set_label("Proportion", fontsize=11)
@@ -224,6 +244,53 @@ def plot_feature_importance(model,
     _save_fig(fig, filepath)
     return filepath
 
+
+#  5. FEATURE CORRELATION HEATMAP
+
+
+def plot_feature_correlation(X_test: np.ndarray,
+                             feature_names: list[str],
+                             output_dir: str) -> str:
+    """Generate a Pearson correlation heatmap for the model features."""
+    filepath = os.path.join(output_dir, "feature_correlation_heatmap.png")
+
+    df = pd.DataFrame(X_test, columns=feature_names)
+    corr = df.corr(method="pearson")
+
+    fig, ax = plt.subplots(figsize=(9, 8))
+
+    from matplotlib.colors import LinearSegmentedColormap
+    cmap = LinearSegmentedColormap.from_list(
+        "custom_diverging", ["#2cb67d", "#16213e", "#e53170"], N=256
+    )
+
+    im = ax.imshow(corr.values, cmap=cmap, vmin=-1, vmax=1, aspect="auto")
+
+    n = len(feature_names)
+    ax.set_xticks(range(n))
+    ax.set_yticks(range(n))
+    ax.set_xticklabels(feature_names, fontsize=9, rotation=45, ha="right")
+    ax.set_yticklabels(feature_names, fontsize=9)
+
+    # Annotate each cell with the correlation value
+    for i in range(n):
+        for j in range(n):
+            val = corr.values[i, j]
+            color = "#e0e0e0" if abs(val) > 0.4 else "#a0a0a0"
+            ax.text(j, i, f"{val:.2f}", ha="center", va="center",
+                    fontsize=9, fontweight="bold", color=color)
+
+    ax.set_title("Feature Correlation Heatmap (Pearson)",
+                 fontsize=15, fontweight="bold", pad=12)
+
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.06)
+    cbar.set_label("Correlation", fontsize=11)
+
+    fig.tight_layout()
+    _save_fig(fig, filepath)
+    return filepath
+
+
 #  Generate all plots
 
 
@@ -232,7 +299,8 @@ def generate_all_plots(results_df: pd.DataFrame,
                        path_features: list[str],
                        path_X_test: np.ndarray,
                        path_y_test: np.ndarray,
-                       output_dir: str) -> list[str]:
+                       output_dir: str,
+                       optimal_threshold: float = None) -> list[str]:
 
     print("\n  Generating thesis plots...")
     plots = []
@@ -244,16 +312,23 @@ def generate_all_plots(results_df: pd.DataFrame,
     plots.append(plot_roc_curve(
         path_model, path_X_test, path_y_test,
         "Stage 1 — Pathogenicity",
-        ["Functional", "Non-functional"], STAGE1_COLORS, output_dir
+        ["Functional", "Non-functional"], STAGE1_COLORS, output_dir,
+        optimal_threshold=optimal_threshold,
     ))
     plots.append(plot_confusion_matrix(
         path_model, path_X_test, path_y_test,
         "Stage 1 — Pathogenicity",
-        ["Functional", "Non-functional"], STAGE1_COLORS[1], output_dir
+        ["Functional", "Non-functional"], STAGE1_COLORS[1], output_dir,
+        optimal_threshold=optimal_threshold,
     ))
     plots.append(plot_feature_importance(
         path_model, path_features,
         "Stage 1 — Pathogenicity", COLORS["primary"], output_dir
+    ))
+
+    # 5. Feature correlation heatmap
+    plots.append(plot_feature_correlation(
+        path_X_test, path_features, output_dir
     ))
 
     print(f"\n  ✓ All {len(plots)} plots saved to: {output_dir}")

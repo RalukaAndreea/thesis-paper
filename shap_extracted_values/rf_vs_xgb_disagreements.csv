@@ -1,0 +1,14 @@
+Grantham_Score,REVEL,BAYESDEL,AGVGDClass,SIFTClass,Polyphen2,Is_Hotspot,Is_CpG,MUT_ID,Individual_ID,ProtDescription,True_Label,True_Class,RF_Proba,RF_Pred,RF_Class,RF_Correct,XGB_Proba,XGB_Pred,XGB_Class,XGB_Correct,Agree,Type
+159.0,0.843,0.2169,6.0,0.0,2.0,0.0,0.0,1293,23852.0,p.C124G,1,Non-functional,0.539,0,Functional,False,0.6582,1,Non-functional,True,False,XGB_correct_RF_wrong
+56.0,0.844,0.38,5.0,1.0,2.0,0.0,0.0,1526,7093.0,p.K139E,0,Functional,0.5146,0,Functional,True,0.638,1,Non-functional,False,False,RF_correct_XGB_wrong
+113.0,0.835,0.1247,6.0,1.0,2.0,0.0,0.0,134,21210.0,p.Q16L,0,Functional,0.5405,0,Functional,True,0.566,1,Non-functional,False,False,RF_correct_XGB_wrong
+155.0,0.728,0.2813,3.0,1.0,2.0,0.0,0.0,1203,24169.0,p.S116F,0,Functional,0.5471,0,Functional,True,0.5798,1,Non-functional,False,False,RF_correct_XGB_wrong
+23.0,0.912,0.1442,0.0,1.0,2.0,0.0,0.0,3040,405.0,p.N235D,1,Non-functional,0.5888,1,Non-functional,True,0.4939,0,Functional,False,False,RF_correct_XGB_wrong
+142.0,0.81,0.206,1.0,1.0,2.0,0.0,0.0,3665,3002.0,p.S269I,0,Functional,0.6445,1,Non-functional,False,0.5137,0,Functional,True,False,XGB_correct_RF_wrong
+58.0,0.76,0.1779,5.0,1.0,2.0,0.0,0.0,1544,3585.0,p.T140S,1,Non-functional,0.5601,0,Functional,False,0.5687,1,Non-functional,True,False,XGB_correct_RF_wrong
+160.0,0.768,0.2966,3.0,1.0,2.0,0.0,0.0,4438,21820.0,p.D324Y,0,Functional,0.4802,0,Functional,True,0.5798,1,Non-functional,False,False,RF_correct_XGB_wrong
+10.0,0.82,0.1038,0.0,1.0,2.0,0.0,0.0,3207,2601.0,p.M243I,0,Functional,0.6534,1,Non-functional,False,0.4359,0,Functional,True,False,XGB_correct_RF_wrong
+180.0,0.471,0.0367,3.0,1.0,2.0,1.0,1.0,1130,104.0,p.R110C,1,Non-functional,0.5988,1,Non-functional,True,0.4101,0,Functional,False,False,RF_correct_XGB_wrong
+29.0,0.836,0.301,0.0,1.0,2.0,0.0,1.0,3903,1214.0,p.R283H,1,Non-functional,0.5567,0,Functional,False,0.5519,1,Non-functional,True,False,XGB_correct_RF_wrong
+89.0,0.597,0.1755,0.0,1.0,2.0,1.0,0.0,1794,2735.0,p.T155I,1,Non-functional,0.5712,1,Non-functional,True,0.4564,0,Functional,False,False,RF_correct_XGB_wrong
+26.0,0.76,0.1185,2.0,1.0,2.0,0.0,0.0,1529,2925.0,p.K139R,0,Functional,0.5868,1,Non-functional,False,0.4654,0,Functional,True,False,XGB_correct_RF_wrong

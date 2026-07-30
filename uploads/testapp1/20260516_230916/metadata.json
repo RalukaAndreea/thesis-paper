@@ -1,0 +1,6 @@
+{
+  "filename": "casestudies_rf.vcf",
+  "timestamp": "2026-05-16T23:09:16.885866",
+  "n_variants": 5,
+  "model": "XGBoost (Optuna)"
+}

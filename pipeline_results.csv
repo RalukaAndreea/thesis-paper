@@ -35,7 +35,7 @@ chr17,7675201,G,T,silent,L,L,,N/A,0.0,0.0,Functional,1.0
 chr17,7675214,T,C,missense,M,T,81.0,moderately_conservative,0.78,0.3779,Non-functional,0.857
 chr17,7676435,C,A,intronic,.,.,,N/A,0.0,0.0,Functional,1.0
 chr17,7674290,G,C,missense,V,L,32.0,conservative,0.4,-0.0761,Functional,0.945
-chr17,7674244,G,A,missense,S,N,46.0,conservative,0.75,0.1025,Non-functional,0.564
+chr17,7674244,G,A,missense,S,N,46.0,conservative,0.75,0.1025,Functional,0.436
 chr17,7674963,C,T,missense,P,S,74.0,moderately_conservative,0.788,0.2026,Non-functional,0.841
 chr17,7675088,G,T,missense,R,L,102.0,moderately_radical,0.96,0.573,Non-functional,0.974
 chr17,7673703,G,A,missense,R,Q,43.0,conservative,0.764,0.2652,Non-functional,0.75
